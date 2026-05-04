@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Lumière — Wedding Photography CRM
 
 A complete CRM for wedding photography studios — clients, events, vendors, payments, tasks, deliverables, and accounting in one place. Built with React + Vite + Tailwind + Supabase.
@@ -137,3 +138,6 @@ wedding-crm/
 **Cannot delete vendor** → They have project assignments. Delete the assignments first, or use a different vendor.
 
 **Date filter on clients page shows nothing** → Clients without an associated event won't match date filters. Add a Wedding event first.
+=======
+# wedding-crm
+>>>>>>> ae8094bb6d421082122cce0b31573bbb500eb363
