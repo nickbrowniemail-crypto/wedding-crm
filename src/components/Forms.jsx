@@ -123,13 +123,13 @@ export function EventForm({ open, onClose, onSaved, clientId, initial }) {
 
 // ============ VENDOR FORM ============
 export function VendorForm({ open, onClose, onSaved, initial }) {
-  const [f, setF] = useState({ name: '', phone: '', email: '', vendor_type: 'photographer', description: '' });
+  const [f, setF] = useState({ name: '', phone: '', email: '', city: '', vendor_type: 'photographer', description: '' });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
     if (initial) setF({ ...initial });
-    else setF({ name: '', phone: '', email: '', vendor_type: 'photographer', description: '' });
+    else setF({ name: '', phone: '', email: '', city: '', vendor_type: 'photographer', description: '' });
   }, [initial, open]);
 
   const u = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -160,6 +160,7 @@ export function VendorForm({ open, onClose, onSaved, initial }) {
           <Field label="Phone" value={f.phone} onChange={(v) => u('phone', v)} />
           <Field label="Email" value={f.email} onChange={(v) => u('email', v)} />
         </div>
+        <Field label="City" value={f.city} onChange={(v) => u('city', v)} placeholder="Udaipur" />
         <Field label="Description" type="textarea" value={f.description} onChange={(v) => u('description', v)} placeholder="Specialty, years of experience…" />
       </div>
       <div className="flex gap-3 mt-7">
@@ -401,7 +402,7 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
 export function DeliverableForm({ open, onClose, onSaved, clients, vendors, initial, defaultClientId }) {
   const [f, setF] = useState({
     client_id: defaultClientId || '', item: '', due_date: '', vendor_id: '',
-    status: 'pending', delivered_date: '', notes: ''
+    status: 'pending', priority: 'medium', delivered_date: '', notes: ''
   });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
@@ -410,7 +411,7 @@ export function DeliverableForm({ open, onClose, onSaved, clients, vendors, init
     if (initial) setF({ ...initial, vendor_id: initial.vendor_id || '' });
     else setF({
       client_id: defaultClientId || '', item: '', due_date: '', vendor_id: '',
-      status: 'pending', delivered_date: '', notes: ''
+      status: 'pending', priority: 'medium', delivered_date: '', notes: ''
     });
   }, [initial, open, defaultClientId]);
 
@@ -451,6 +452,7 @@ export function DeliverableForm({ open, onClose, onSaved, clients, vendors, init
           <Field label="Due Date" type="date" value={f.due_date} onChange={(v) => u('due_date', v)} />
           <Field label="Status" type="select" value={f.status} onChange={(v) => u('status', v)} options={TASK_STATUSES} />
         </div>
+        <Field label="Priority" type="select" value={f.priority} onChange={(v) => u('priority', v)} options={PRIORITIES} />
         {f.status === 'done' && (
           <Field label="Delivered On" type="date" value={f.delivered_date} onChange={(v) => u('delivered_date', v)} />
         )}

@@ -28,6 +28,7 @@ export function DashboardView({ data, openClient, openVendor }) {
 
   const overdueTasks = tasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date());
   const upcomingTasks = tasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) >= new Date()).slice(0, 4);
+  const todaysTasks = tasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date).toDateString() === new Date().toDateString());
 
   const groupedEvents = useMemo(() => {
     const upcoming = events.filter(e => new Date(e.event_date) >= new Date()).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
@@ -100,17 +101,23 @@ export function DashboardView({ data, openClient, openVendor }) {
         </div>
 
         <div className="bg-white rounded-lg border border-stone-200/70 p-5 sm:p-6">
-          <h2 className="display text-lg sm:text-xl text-stone-900 mb-4">Recent Activity</h2>
-          {activity.length === 0 ? (
-            <div className="text-sm text-stone-500">No activity yet.</div>
+          <h2 className="display text-lg sm:text-xl text-stone-900 mb-4">Today's Tasks</h2>
+          {todaysTasks.length === 0 ? (
+            <div className="text-sm text-stone-500">No tasks due today.</div>
           ) : (
-            <div className="space-y-3">
-              {activity.slice(0, 8).map(a => (
-                <div key={a.id} className="text-sm border-l-2 border-stone-200 pl-3">
-                  <div className="text-stone-900">{a.description}</div>
-                  <div className="text-stone-500 text-xs mt-0.5">{fmtDate(a.created_at)}</div>
-                </div>
-              ))}
+            <div className="space-y-2">
+              {todaysTasks.map(t => {
+                const client = clients.find(c => c.id === t.client_id);
+                return (
+                  <button key={t.id} onClick={() => t.client_id && openClient(t.client_id)} className="w-full flex items-start justify-between gap-3 p-2 rounded hover:bg-stone-50 text-left">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-stone-900">{t.title}</div>
+                      <div className="text-xs text-stone-500 mt-0.5">{client ? `${client.bride_name} & ${client.groom_name}` : 'Internal'} · {t.assigned_to}</div>
+                    </div>
+                    <div className="text-xs text-stone-700 flex-shrink-0">{t.status}</div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -161,6 +168,82 @@ export function DashboardView({ data, openClient, openVendor }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+export function ScheduleView({ data, openClient }) {
+  const { events, clients, projectVendors, vendors, loading } = data;
+  if (loading) return <Loader label="Loading schedule…" />;
+
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const aDate = new Date(a.event_date);
+      const bDate = new Date(b.event_date);
+      if (aDate.getTime() !== bDate.getTime()) return aDate - bDate;
+      return (a.event_time || '').localeCompare(b.event_time || '');
+    });
+  }, [events]);
+
+  const grouped = useMemo(() => {
+    const map = new Map();
+    sortedEvents.forEach((event) => {
+      const key = event.event_date;
+      if (!map.has(key)) map.set(key, { date: new Date(event.event_date), events: [] });
+      map.get(key).events.push(event);
+    });
+    return Array.from(map.values());
+  }, [sortedEvents]);
+
+  const getPhotographer = (clientId) => {
+    const pv = projectVendors.find(v => v.client_id === clientId && v.role === 'photographer');
+    return pv ? vendors.find(v => v.id === pv.vendor_id) : null;
+  };
+
+  return (
+    <div className="px-5 sm:px-8 lg:px-10 py-4">
+      {grouped.length === 0 ? (
+        <EmptyState icon={Calendar} title="No events scheduled" sub="Add events from the client detail page." />
+      ) : (
+        <div className="overflow-x-auto pb-3">
+          <div className="min-w-[900px]">
+            <div className="grid grid-flow-col auto-cols-min gap-2">
+              {grouped.map(({ date, events: dayEvents }) => (
+                <div key={date.toISOString()} className="min-w-[180px] bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                  <div className="sticky top-0 z-10 bg-white border-b border-stone-200 px-2.5 py-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">{date.toLocaleDateString('en-IN', { month: 'short' })}</div>
+                    <div className="text-xl font-semibold text-stone-900 leading-none">{date.getDate()}</div>
+                    <div className="text-[11px] text-stone-500 mt-0.5">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                  </div>
+                  <div className="divide-y divide-stone-200">
+                    {dayEvents.map((event) => {
+                      const client = clients.find(c => c.id === event.client_id);
+                      const photographer = getPhotographer(event.client_id);
+                      return (
+                        <button key={event.id} onClick={() => event.client_id && openClient(event.client_id)}
+                          className="w-full text-left px-2.5 py-2.5 hover:bg-stone-50 transition-colors">
+                          <div className="space-y-0.5">
+                            <div className="text-sm font-semibold text-stone-900 truncate">{client ? `${client.bride_name} & ${client.groom_name}` : 'Unknown Client'}</div>
+                            <div className="text-[11px] text-stone-500 uppercase tracking-[0.2em] truncate">{event.event_type}</div>
+                            <div className="flex flex-wrap items-center gap-1 text-[11px] text-stone-600">
+                              <span className="inline-flex items-center gap-1"><Clock size={12} />{event.event_time ? event.event_time.slice(0, 5) : 'TBD'}</span>
+                              <span className="inline-flex items-center gap-1 truncate"><MapPin size={12} />{event.venue || 'Venue TBD'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-stone-600 truncate">
+                              <Camera size={12} />
+                              <span className="truncate">{photographer?.name || 'Photographer TBD'}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -231,7 +314,7 @@ export function ClientsView({ data, openClient }) {
               <thead>
                 <tr className="border-b border-stone-200/70 bg-stone-50/50">
                   {['Wedding Date', 'Couple', 'Location', 'Photographer', 'Booking', 'Received', 'Pending', 'Status', ''].map(h =>
-                    <th key={h} className="text-left text-[10px] uppercase tracking-[0.2em] text-stone-500 px-4 py-3 font-normal">{h}</th>)}
+                    <th key={h} className="text-left text-[10px] uppercase tracking-[0.2em] text-stone-500 px-3 py-2.5 font-normal">{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -242,21 +325,24 @@ export function ClientsView({ data, openClient }) {
                   const pending = Number(c.total_amount || 0) - received;
                   return (
                     <tr key={c.id} onClick={() => openClient(c.id)} className="border-b border-stone-100 hover:bg-stone-50/50 cursor-pointer">
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-stone-900">{wd ? fmtDateShort(wd) : '—'}</div>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900">
+                        <div>{wd ? fmtDateShort(wd) : '—'}</div>
                         <div className="text-xs text-stone-500">{wd ? new Date(wd).getFullYear() : ''}</div>
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="display text-base text-stone-900">{c.bride_name} <span className="display-italic text-stone-400">&</span> {c.groom_name}</div>
-                        <div className="text-xs text-stone-500 mt-0.5">{c.phone}</div>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[220px] truncate">
+                        <div className="truncate">{c.bride_name} <span className="text-stone-400">&</span> {c.groom_name}</div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-stone-700">{c.city || '—'}</td>
-                      <td className="px-4 py-4 text-sm text-stone-700">{photographer?.name || <span className="text-amber-700">—</span>}</td>
-                      <td className="px-4 py-4 text-sm text-stone-900">{fmtINRshort(c.total_amount)}</td>
-                      <td className="px-4 py-4 text-sm text-emerald-700">{fmtINRshort(received)}</td>
-                      <td className="px-4 py-4 text-sm" style={{ color: pending > 0 ? '#b45309' : '#57534e' }}>{fmtINRshort(pending)}</td>
-                      <td className="px-4 py-4"><span className={`inline-block px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-wider ${statusColor(c.status)}`}>{c.status}</span></td>
-                      <td className="px-4 py-4 text-stone-400"><ChevronRight size={14} /></td>
+                      <td className="px-3 py-2.5 text-sm text-stone-700 whitespace-nowrap">{c.city || '—'}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-700 max-w-[180px] truncate">{photographer?.name || <span className="text-amber-700">—</span>}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 whitespace-nowrap">{fmtINRshort(c.total_amount)}</td>
+                      <td className="px-3 py-2.5 text-sm text-emerald-700 whitespace-nowrap">{fmtINRshort(received)}</td>
+                      <td className="px-3 py-2.5 text-sm whitespace-nowrap" style={{ color: pending > 0 ? '#b45309' : '#57534e' }}>{fmtINRshort(pending)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-block px-2 py-1 rounded-full border text-[10px] uppercase tracking-wider ${statusColor(c.status)}`}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-stone-400"><ChevronRight size={14} /></td>
                     </tr>
                   );
                 })}
@@ -314,7 +400,21 @@ export function ClientDetailView({ data, clientId, openVendor }) {
   const cPayments = payments.filter(p => p.client_id === clientId).sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
   const cPV = projectVendors.filter(v => v.client_id === clientId);
   const cTasks = tasks.filter(t => t.client_id === clientId);
-  const cDel = deliverables.filter(d => d.client_id === clientId);
+  const cDel = [
+    ...deliverables.filter(d => d.client_id === clientId).map(d => ({ ...d, source: 'deliverable' })),
+    ...tasks.filter(t => t.client_id === clientId && t.is_deliverable).map(t => ({
+      id: 't' + t.id,
+      client_id: t.client_id,
+      item: t.title,
+      due_date: t.due_date,
+      vendor_id: null,
+      status: t.status,
+      priority: t.priority || 'medium',
+      notes: t.description,
+      assigned_to: t.assigned_to,
+      source: 'task'
+    }))
+  ].sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
 
   const received = cPayments.reduce((s, p) => s + Number(p.amount), 0);
   const pending = Number(c.total_amount || 0) - received;
@@ -526,18 +626,52 @@ export function ClientDetailView({ data, clientId, openVendor }) {
           </div>
           {cTasks.length === 0 ? <EmptyState title="No tasks for this project" /> : (
             <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-              {cTasks.map((t, i) => (
-                <button key={t.id} onClick={() => setTaskForm({ open: true, initial: t })} className={`w-full flex items-center gap-3 p-4 hover:bg-stone-50/50 text-left ${i !== cTasks.length - 1 ? 'border-b border-stone-100' : ''}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-stone-900 flex items-center gap-2">
-                      {t.title}
-                      {t.is_deliverable && <Package size={12} className="text-[#6B1F2E]" />}
-                    </div>
-                    <div className="text-xs text-stone-500 mt-0.5">{t.assigned_to} {t.due_date && `· Due ${fmtDateShort(t.due_date)}`}</div>
-                  </div>
-                  <span className={`inline-block px-2 py-1 rounded-full border text-[9px] uppercase tracking-wider ${taskStatusColor(t.status)}`}>{t.status.replace('_', ' ')}</span>
-                </button>
-              ))}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-stone-50 border-b border-stone-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Title</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Assignee</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {cTasks.map((t) => (
+                      <tr key={t.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setTaskForm({ open: true, initial: t })}>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
+                          {t.due_date ? fmtDateShort(t.due_date) : '—'}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-stone-900">
+                          <div className="flex items-center gap-2">
+                            {t.title}
+                            {t.is_deliverable && <Package size={12} className="text-[#6B1F2E]" />}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
+                          {t.assigned_to || '—'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
+                            {t.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <span className={`capitalize ${t.priority === 'high' ? 'text-red-600' : t.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                            {t.priority || 'medium'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-stone-500 max-w-xs truncate" title={t.description || undefined}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.description || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -552,18 +686,53 @@ export function ClientDetailView({ data, clientId, openVendor }) {
           </div>
           {cDel.length === 0 ? <EmptyState title="No deliverables added yet" /> : (
             <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-              {cDel.map((d, i) => {
-                const v = vendors.find(x => x.id === d.vendor_id);
-                return (
-                  <button key={d.id} onClick={() => setDelForm({ open: true, initial: d })} className={`w-full flex items-center gap-3 p-4 hover:bg-stone-50/50 text-left ${i !== cDel.length - 1 ? 'border-b border-stone-100' : ''}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-stone-900">{d.item}</div>
-                      <div className="text-xs text-stone-500 mt-0.5">{v?.name || 'No vendor'}{d.due_date && ` · Due ${fmtDateShort(d.due_date)}`}</div>
-                    </div>
-                    <span className={`inline-block px-2 py-1 rounded-full border text-[9px] uppercase tracking-wider ${taskStatusColor(d.status)}`}>{d.status.replace('_', ' ')}</span>
-                  </button>
-                );
-              })}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-stone-50 border-b border-stone-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Title</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Assignee</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {cDel.map((d) => {
+                      const v = vendors.find(x => x.id === d.vendor_id);
+                      const onClick = () => d.source === 'deliverable' ? setDelForm({ open: true, initial: d }) : setTaskForm({ open: true, initial: tasks.find(t => 't' + t.id === d.id) });
+                      return (
+                        <tr key={d.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={onClick}>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
+                            {d.due_date ? fmtDateShort(d.due_date) : '—'}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-stone-900">
+                            {d.item}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
+                            {d.assigned_to || '—'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status)}`}>
+                              {d.status.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <span className={`capitalize ${d.priority === 'high' ? 'text-red-600' : d.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                              {d.priority || 'medium'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-stone-500 max-w-xs truncate" title={d.notes || undefined}
+                            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {d.notes || '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -588,7 +757,7 @@ export function VendorsView({ data, openVendor }) {
   const [showForm, setShowForm] = useState(false);
 
   const filtered = vendors.filter(v => {
-    const matches = `${v.name} ${v.description || ''}`.toLowerCase().includes(search.toLowerCase());
+    const matches = `${v.name} ${v.city || ''} ${v.description || ''}`.toLowerCase().includes(search.toLowerCase());
     return matches && (typeFilter === 'all' || v.vendor_type === typeFilter);
   });
 
@@ -623,7 +792,7 @@ export function VendorsView({ data, openVendor }) {
             <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-stone-200/70 bg-stone-50/50">
-                  {['Name', 'Type', 'Projects', 'Billed', 'Paid', 'Pending', ''].map(h =>
+                  {['Name', 'Type', 'City', 'Projects', 'Billed', 'Paid', 'Pending', ''].map(h =>
                     <th key={h} className="text-left text-[10px] uppercase tracking-[0.2em] text-stone-500 px-4 py-3 font-normal">{h}</th>)}
                 </tr>
               </thead>
@@ -635,16 +804,14 @@ export function VendorsView({ data, openVendor }) {
                   const pending = billed - paid;
                   return (
                     <tr key={v.id} onClick={() => openVendor(v.id)} className="border-b border-stone-100 hover:bg-stone-50/50 cursor-pointer">
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-stone-900">{v.name}</div>
-                        <div className="text-xs text-stone-500 mt-0.5">{v.phone}</div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-stone-700">{vendorTypeLabel(v.vendor_type)}</td>
-                      <td className="px-4 py-4 text-sm text-stone-700">{projects.length}</td>
-                      <td className="px-4 py-4 text-sm text-stone-900">{fmtINRshort(billed)}</td>
-                      <td className="px-4 py-4 text-sm text-emerald-700">{fmtINRshort(paid)}</td>
-                      <td className="px-4 py-4 text-sm" style={{ color: pending > 0 ? '#b45309' : '#57534e' }}>{fmtINRshort(pending)}</td>
-                      <td className="px-4 py-4 text-stone-400"><ChevronRight size={14} /></td>
+                      <td className="px-4 py-3 text-sm text-stone-900">{v.name}</td>
+                      <td className="px-4 py-3 text-sm text-stone-700">{vendorTypeLabel(v.vendor_type)}</td>
+                      <td className="px-4 py-3 text-sm text-stone-700">{v.city || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-stone-700">{projects.length}</td>
+                      <td className="px-4 py-3 text-sm text-stone-900">{fmtINRshort(billed)}</td>
+                      <td className="px-4 py-3 text-sm text-emerald-700">{fmtINRshort(paid)}</td>
+                      <td className="px-4 py-3 text-sm" style={{ color: pending > 0 ? '#b45309' : '#57534e' }}>{fmtINRshort(pending)}</td>
+                      <td className="px-4 py-3 text-stone-400"><ChevronRight size={14} /></td>
                     </tr>
                   );
                 })}
@@ -652,16 +819,16 @@ export function VendorsView({ data, openVendor }) {
             </table>
           </div>
 
-          <div className="md:hidden space-y-3">
+          <div className="md:hidden space-y-2">
             {filtered.map(v => {
               const projects = projectVendors.filter(pv => pv.vendor_id === v.id);
               const billed = projects.reduce((s, p) => s + Number(p.agreed_amount || 0), 0);
               const paid = projects.reduce((s, p) => s + vendorPayments.filter(vp => vp.project_vendor_id === p.id).reduce((ss, vp) => ss + Number(vp.amount), 0), 0);
               const pending = billed - paid;
               return (
-                <button key={v.id} onClick={() => openVendor(v.id)} className="w-full bg-white rounded-lg border border-stone-200/70 p-4 text-left">
-                  <div className="mb-2"><div className="text-base text-stone-900">{v.name}</div><div className="text-xs text-stone-500 mt-0.5">{vendorTypeLabel(v.vendor_type)} · {projects.length} projects</div></div>
-                  <div className="grid grid-cols-3 gap-2 text-xs pt-3 border-t border-stone-100">
+                <button key={v.id} onClick={() => openVendor(v.id)} className="w-full bg-white rounded-lg border border-stone-200/70 p-3 text-left">
+                  <div className="mb-1"><div className="text-base text-stone-900">{v.name}</div><div className="text-xs text-stone-500 mt-0.5">{vendorTypeLabel(v.vendor_type)} · {v.city || '—'}</div></div>
+                  <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t border-stone-100">
                     <div><div className="text-stone-500 text-[9px] uppercase">Billed</div><div className="display mt-0.5">{fmtINRshort(billed)}</div></div>
                     <div><div className="text-stone-500 text-[9px] uppercase">Paid</div><div className="display text-emerald-700 mt-0.5">{fmtINRshort(paid)}</div></div>
                     <div><div className="text-stone-500 text-[9px] uppercase">Pending</div><div className="display mt-0.5" style={{ color: pending > 0 ? '#b45309' : '#57534e' }}>{fmtINRshort(pending)}</div></div>
@@ -703,6 +870,7 @@ export function VendorDetailView({ data, vendorId, openClient }) {
             </div>
             {v.description && <div className="text-sm text-stone-700 mb-3">{v.description}</div>}
             <div className="text-xs text-stone-500 space-y-1">
+              {v.city && <div className="flex items-center gap-2"><MapPin size={11} />{v.city}</div>}
               {v.phone && <div className="flex items-center gap-2"><Phone size={11} />{v.phone}</div>}
               {v.email && <div className="flex items-center gap-2"><Mail size={11} />{v.email}</div>}
             </div>
@@ -773,6 +941,7 @@ export function TasksView({ data, openClient }) {
   const [filter, setFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
   const [taskForm, setTaskForm] = useState({ open: false, initial: null });
 
   const assignees = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
@@ -782,6 +951,24 @@ export function TasksView({ data, openClient }) {
     if (scopeFilter === 'project' && !t.client_id) return false;
     if (scopeFilter === 'internal' && t.client_id) return false;
     if (assigneeFilter !== 'all' && t.assigned_to !== assigneeFilter) return false;
+
+    if (dateFilter !== 'all') {
+      const due = t.due_date ? new Date(t.due_date) : null;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dueDay = due ? new Date(due.getFullYear(), due.getMonth(), due.getDate()) : null;
+
+      if (dateFilter === 'today') {
+        if (!dueDay || dueDay.getTime() !== today.getTime()) return false;
+      }
+      if (dateFilter === 'overdue') {
+        if (!due || due >= now || t.status === 'done') return false;
+      }
+      if (dateFilter === 'upcoming') {
+        if (!due || dueDay < today) return false;
+      }
+    }
+
     return true;
   });
 
@@ -807,6 +994,12 @@ export function TasksView({ data, openClient }) {
           <option value="project">Project tasks</option>
           <option value="internal">Internal tasks</option>
         </select>
+        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All due dates</option>
+          <option value="today">Today</option>
+          <option value="overdue">Overdue</option>
+          <option value="upcoming">Upcoming</option>
+        </select>
         <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
           <option value="all">All assignees</option>
           {assignees.map(a => <option key={a} value={a}>{a}</option>)}
@@ -818,30 +1011,65 @@ export function TasksView({ data, openClient }) {
 
       {filtered.length === 0 ? <EmptyState title="No tasks match these filters" /> : (
         <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-          {filtered.map((t, i) => {
-            const client = clients.find(c => c.id === t.client_id);
-            const isOverdue = t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date();
-            return (
-              <div key={t.id} className={`flex items-start sm:items-center gap-3 p-4 hover:bg-stone-50/50 transition-colors cursor-pointer ${i !== filtered.length - 1 ? 'border-b border-stone-100' : ''}`}
-                onClick={() => setTaskForm({ open: true, initial: t })}>
-                <button onClick={(e) => toggleDeliverable(t, e)} title={t.is_deliverable ? "Marked as deliverable" : "Mark as deliverable"}
-                  className={`flex-shrink-0 mt-1 sm:mt-0 p-1.5 rounded ${t.is_deliverable ? 'bg-[#6B1F2E] text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}>
-                  <Package size={12} />
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-stone-900">{t.title}</div>
-                  <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
-                    {client ? (
-                      <button onClick={(e) => { e.stopPropagation(); openClient(client.id); }} className="hover:text-stone-900 hover:underline">{client.bride_name} & {client.groom_name}</button>
-                    ) : <span className="px-1.5 py-0.5 bg-stone-100 rounded text-stone-600 text-[10px] uppercase tracking-wider">Internal</span>}
-                    <span>· {t.assigned_to}</span>
-                    {t.due_date && <span className={isOverdue ? 'text-red-600' : ''}>· Due {fmtDateShort(t.due_date)}</span>}
-                  </div>
-                </div>
-                <span className={`inline-block px-2 py-1 rounded-full border text-[9px] uppercase tracking-wider ${taskStatusColor(t.status)}`}>{t.status.replace('_', ' ')}</span>
-              </div>
-            );
-          })}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-stone-50 border-b border-stone-200">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Title</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Assignee</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filtered.map((t) => {
+                  const client = clients.find(c => c.id === t.client_id);
+                  const isOverdue = t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date();
+                  return (
+                    <tr key={t.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setTaskForm({ open: true, initial: t })}>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900">
+                        {t.due_date ? fmtDateShort(t.due_date) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[240px] truncate">
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => toggleDeliverable(t, e)} title={t.is_deliverable ? "Marked as deliverable" : "Mark as deliverable"}
+                            className={`p-1 rounded ${t.is_deliverable ? 'bg-[#6B1F2E] text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}>
+                            <Package size={12} />
+                          </button>
+                          <span className="truncate" title={t.title}>{t.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[180px] truncate">
+                        {client ? (
+                          <button onClick={(e) => { e.stopPropagation(); openClient(client.id); }} className="hover:text-stone-900 hover:underline truncate" title={`${client.bride_name} & ${client.groom_name}`}>
+                            {client.bride_name} & {client.groom_name}
+                          </button>
+                        ) : <span className="px-2 py-1 bg-stone-100 rounded text-stone-600 text-xs uppercase tracking-wider">Internal</span>}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={t.assigned_to}>{t.assigned_to}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
+                          {t.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900">
+                        <span className={`capitalize ${t.priority === 'high' ? 'text-red-600' : t.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-500 max-w-[220px] truncate" title={t.description || undefined}
+                        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.description || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -853,48 +1081,131 @@ export function TasksView({ data, openClient }) {
 // ============ DELIVERABLES ============
 export function DeliverablesView({ data, openClient }) {
   const { deliverables, tasks, clients, vendors, refresh } = data;
+  const [filter, setFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [delForm, setDelForm] = useState({ open: false, initial: null });
 
   const items = [
     ...deliverables.map(d => ({ ...d, source: 'deliverable' })),
     ...tasks.filter(t => t.is_deliverable).map(t => ({
-      id: 't' + t.id, client_id: t.client_id, item: t.title, due_date: t.due_date,
-      vendor_id: null, status: t.status, source: 'task', assigned_to: t.assigned_to
+      id: 't' + t.id,
+      client_id: t.client_id,
+      item: t.title,
+      due_date: t.due_date,
+      vendor_id: null,
+      status: t.status,
+      priority: t.priority || 'medium',
+      notes: t.description,
+      source: 'task',
+      assigned_to: t.assigned_to
     })),
   ].sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
 
+  const assignees = [...new Set(items.map(d => d.assigned_to).filter(Boolean))];
+  const filteredItems = items.filter(d => {
+    if (filter !== 'all' && d.status !== filter) return false;
+    if (assigneeFilter !== 'all' && d.assigned_to !== assigneeFilter) return false;
+
+    if (dateFilter !== 'all') {
+      const due = d.due_date ? new Date(d.due_date) : null;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dueDay = due ? new Date(due.getFullYear(), due.getMonth(), due.getDate()) : null;
+
+      if (dateFilter === 'today') {
+        if (!dueDay || dueDay.getTime() !== today.getTime()) return false;
+      }
+      if (dateFilter === 'overdue') {
+        if (!due || due >= now || d.status === 'done') return false;
+      }
+      if (dateFilter === 'upcoming') {
+        if (!dueDay || dueDay.getTime() < today.getTime()) return false;
+      }
+    }
+
+    return true;
+  });
+
   return (
     <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
-      <div className="flex items-center justify-end mb-5">
-        <button onClick={() => setDelForm({ open: true, initial: null })} className="flex items-center gap-2 bg-stone-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5 flex-wrap">
+        <div className="flex gap-1 bg-white border border-stone-200/70 rounded-md p-1">
+          {['all', 'pending', 'in_progress', 'done'].map(f => (
+            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded text-[10px] uppercase tracking-wider ${filter === f ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}>
+              {f.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All due dates</option>
+          <option value="today">Today</option>
+          <option value="overdue">Overdue</option>
+          <option value="upcoming">Upcoming</option>
+        </select>
+        <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All assignees</option>
+          {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <button onClick={() => setDelForm({ open: true, initial: null })} className="flex items-center gap-2 bg-stone-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm sm:ml-auto">
           <Plus size={14} />Add Deliverable
         </button>
       </div>
 
-      {items.length === 0 ? <EmptyState icon={Package} title="No deliverables yet" /> : (
+      {filteredItems.length === 0 ? <EmptyState icon={Package} title="No deliverables yet" /> : (
         <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-          {items.map((d, i) => {
-            const client = clients.find(c => c.id === d.client_id);
-            const vendor = d.vendor_id ? vendors.find(v => v.id === d.vendor_id) : null;
-            const onClick = () => d.source === 'deliverable' ? setDelForm({ open: true, initial: d }) : openClient(d.client_id);
-            return (
-              <div key={d.id} className={`flex items-center gap-3 p-4 hover:bg-stone-50/50 cursor-pointer ${i !== items.length - 1 ? 'border-b border-stone-100' : ''}`} onClick={onClick}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-stone-900 flex items-center gap-2">
-                    {d.item}
-                    {d.source === 'task' && <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded">From task</span>}
-                  </div>
-                  <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
-                    {client && <button onClick={(e) => { e.stopPropagation(); openClient(client.id); }} className="hover:text-stone-900 hover:underline">{client.bride_name} & {client.groom_name}</button>}
-                    {vendor && <span>· {vendor.name}</span>}
-                    {d.assigned_to && <span>· {d.assigned_to}</span>}
-                    {d.due_date && <span>· Due {fmtDateShort(d.due_date)}</span>}
-                  </div>
-                </div>
-                <span className={`inline-block px-2 py-1 rounded-full border text-[9px] uppercase tracking-wider ${taskStatusColor(d.status)}`}>{d.status.replace('_', ' ')}</span>
-              </div>
-            );
-          })}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-stone-50 border-b border-stone-200">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Title</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Assignee</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredItems.map((d) => {
+                  const client = clients.find(c => c.id === d.client_id);
+                  const vendor = d.vendor_id ? vendors.find(v => v.id === d.vendor_id) : null;
+                  const onClick = () => d.source === 'deliverable' ? setDelForm({ open: true, initial: d }) : openClient(d.client_id);
+                  return (
+                    <tr key={d.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={onClick}>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900">
+                        {d.due_date ? fmtDateShort(d.due_date) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[240px] truncate" title={d.item}>{d.item}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[180px] truncate">
+                        {client ? (
+                          <button onClick={(e) => { e.stopPropagation(); openClient(client.id); }} className="hover:text-stone-900 hover:underline truncate" title={`${client.bride_name} & ${client.groom_name}`}>
+                            {client.bride_name} & {client.groom_name}
+                          </button>
+                        ) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={d.assigned_to}>{d.assigned_to || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status)}`}>
+                          {d.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm">
+                        <span className={`capitalize ${d.priority === 'high' ? 'text-red-600' : d.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                          {d.priority || 'medium'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-500 max-w-[220px] truncate" title={d.notes || undefined}
+                        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.notes || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

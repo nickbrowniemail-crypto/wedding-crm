@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, Wallet, Briefcase, CheckSquare, Package,
-  Menu, ChevronLeft
+  Menu, ChevronLeft, Calendar
 } from 'lucide-react';
-import { supabase } from './supabaseClient';
 import { useTable } from './dataHooks';
-import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
 import {
-  DashboardView, ClientsView, ClientDetailView,
+  DashboardView, ScheduleView, ClientsView, ClientDetailView,
   VendorsView, VendorDetailView, TasksView, DeliverablesView, AccountingView
 } from './components/Views';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'schedule', label: 'Schedule', icon: Calendar },
   { id: 'clients', label: 'Clients', icon: Users },
   { id: 'vendors', label: 'Vendors', icon: Briefcase },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
@@ -22,25 +21,10 @@ const navItems = [
 ];
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthReady(true);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  if (!authReady) return <div className="min-h-screen flex items-center justify-center text-stone-500">Loading…</div>;
-  if (!session) return <AuthScreen />;
-
-  return <CRM session={session} />;
+  return <CRM />;
 }
 
-function CRM({ session }) {
+function CRM() {
   const [view, setView] = useState('dashboard');
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [selectedVendorId, setSelectedVendorId] = useState(null);
@@ -102,11 +86,11 @@ function CRM({ session }) {
 
   return (
     <div className="h-screen w-full flex overflow-hidden">
-      <Sidebar navItems={navItems} view={view} onNav={navigateTo} hidden="hidden md:flex" userEmail={session.user?.email} />
+      <Sidebar navItems={navItems} view={view} onNav={navigateTo} hidden="hidden md:flex" />
       {sidebarOpen && (
         <>
           <div className="md:hidden fixed inset-0 bg-stone-900/40 z-40" onClick={() => setSidebarOpen(false)} />
-          <Sidebar navItems={navItems} view={view} onNav={(v) => { navigateTo(v); setSidebarOpen(false); }} mobile onClose={() => setSidebarOpen(false)} userEmail={session.user?.email} />
+          <Sidebar navItems={navItems} view={view} onNav={(v) => { navigateTo(v); setSidebarOpen(false); }} mobile onClose={() => setSidebarOpen(false)} />
         </>
       )}
 
@@ -120,6 +104,7 @@ function CRM({ session }) {
 
         {view === 'dashboard' && <DashboardView data={data} openClient={openClient} openVendor={openVendor} />}
         {view === 'clients' && <ClientsView data={data} openClient={openClient} />}
+        {view === 'schedule' && <ScheduleView data={data} openClient={openClient} />}
         {view === 'clientDetail' && <ClientDetailView data={data} clientId={selectedClientId} openVendor={openVendor} />}
         {view === 'vendors' && <VendorsView data={data} openVendor={openVendor} />}
         {view === 'vendorDetail' && <VendorDetailView data={data} vendorId={selectedVendorId} openClient={openClient} />}
@@ -146,6 +131,7 @@ function Header({ view, clients, vendors, selectedClientId, selectedVendorId, on
   }
   else if (view === 'tasks') { eyebrow = 'Work'; title = 'Tasks'; }
   else if (view === 'deliverables') { eyebrow = 'Output'; title = 'Deliverables'; }
+  else if (view === 'schedule') { eyebrow = 'Schedule'; title = 'Event Calendar'; }
   else if (view === 'accounting') { eyebrow = 'Finance'; title = 'Accounting'; }
 
   const isDetail = view === 'clientDetail' || view === 'vendorDetail';

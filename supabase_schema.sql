@@ -50,6 +50,7 @@ CREATE TABLE vendors (
   name TEXT NOT NULL,
   phone TEXT,
   email TEXT,
+  city TEXT,
   vendor_type vendor_type NOT NULL,
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -265,16 +266,16 @@ ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deliverables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated full access" ON clients FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON events FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON project_vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON payments FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON vendor_payments FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON tasks FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON deliverables FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated full access" ON activity_log FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON clients FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON events FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON vendors FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON project_vendors FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON payments FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON vendor_payments FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON expenses FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON tasks FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON deliverables FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Anonymous full access" ON activity_log FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- ============ DONE ============
 -- Tables ready. Add team members from Supabase Auth dashboard:

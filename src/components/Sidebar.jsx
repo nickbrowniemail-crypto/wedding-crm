@@ -1,11 +1,6 @@
-import { X, Settings, LogOut } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { X, Settings } from 'lucide-react';
 
-export default function Sidebar({ navItems, view, onNav, hidden, mobile, onClose, userEmail }) {
-  const logout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
-  };
+export default function Sidebar({ navItems, view, onNav, hidden, mobile, onClose }) {
 
   return (
     <aside className={`${hidden || ''} ${mobile ? 'md:hidden fixed top-0 left-0 bottom-0 z-50' : ''} w-56 lg:w-60 border-r border-stone-200/70 bg-[#FDFBF7] flex flex-col flex-shrink-0`}>
@@ -35,13 +30,8 @@ export default function Sidebar({ navItems, view, onNav, hidden, mobile, onClose
       </nav>
 
       <div className="p-4 border-t border-stone-200/70 space-y-1">
-        {userEmail && (
-          <div className="px-3 py-2 text-[10px] text-stone-500 truncate" title={userEmail}>
-            {userEmail}
-          </div>
-        )}
-        <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-stone-600 hover:bg-stone-100">
-          <LogOut size={16} strokeWidth={1.5} />Sign out
+        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-stone-600 hover:bg-stone-100">
+          <Settings size={16} strokeWidth={1.5} />Settings
         </button>
       </div>
     </aside>
