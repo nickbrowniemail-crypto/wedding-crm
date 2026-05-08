@@ -41,13 +41,41 @@ export function DashboardView({ data, openClient, openVendor }) {
     return Object.values(groups).slice(0, 6);
   }, [events]);
 
+  // Calendar-style grouped events for dashboard (today + next 2 days)
+  const calendarEvents = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+
+    const dates = [today, tomorrow, dayAfter];
+    const groups = {};
+
+    // Group all events by date
+    events.forEach(e => {
+      const eventDate = new Date(e.event_date);
+      eventDate.setHours(0, 0, 0, 0);
+      const dateKey = eventDate.toISOString().split('T')[0];
+      if (!groups[dateKey]) groups[dateKey] = { date: eventDate, events: [] };
+      groups[dateKey].events.push(e);
+    });
+
+    // Return only the 3 dates we want, sorted
+    return dates.map(date => {
+      const dateKey = date.toISOString().split('T')[0];
+      return groups[dateKey] || { date, events: [] };
+    });
+  }, [events]);
+
   const getProjectPhotographer = (clientId) => {
     const pv = projectVendors.find(v => v.client_id === clientId && v.role === 'photographer');
     return pv ? vendors.find(v => v.id === pv.vendor_id) : null;
   };
 
   return (
-    <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="px-5 sm:px-8 lg:px-10 py-4 sm:py-5 space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Income Received" value={fmtINRshort(totalReceived)} sub={`of ${fmtINRshort(totalRevenue)} booked`} accent />
         <StatCard label="Vendor Bills" value={fmtINRshort(totalVendorBills)} sub={`${fmtINRshort(totalVendorPaid)} paid`} />
@@ -58,44 +86,54 @@ export function DashboardView({ data, openClient, openVendor }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 bg-white rounded-lg border border-stone-200/70 p-5 sm:p-6">
           <h2 className="display text-lg sm:text-xl text-stone-900 mb-4">Upcoming Events</h2>
-          {groupedEvents.length === 0 ? (
+          {calendarEvents.every(group => group.events.length === 0) ? (
             <EmptyState icon={Calendar} title="No upcoming events" sub="Add events from the client detail page." />
           ) : (
-            <div className="space-y-4">
-              {groupedEvents.map(({ date, clientId, events: evts }) => {
-                const d = new Date(date);
-                const client = clients.find(c => c.id === clientId);
-                const photographer = getProjectPhotographer(clientId);
-                return (
-                  <div key={`${clientId}-${date}`} className="flex gap-3 sm:gap-4">
-                    <div className="w-14 text-center flex-shrink-0 pt-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-stone-500">{d.toLocaleDateString('en-IN', { month: 'short' })}</div>
-                      <div className="display text-2xl text-stone-900 leading-none mt-0.5">{d.getDate()}</div>
-                      <div className="text-[10px] text-stone-500 mt-0.5">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
-                    </div>
-                    <div className="flex-1 min-w-0 border-l border-stone-200 pl-3 sm:pl-4">
-                      <button onClick={() => openClient(clientId)} className="display text-base sm:text-lg text-stone-900 hover:text-[#6B1F2E] text-left">
-                        {client?.bride_name} <span className="display-italic text-stone-400">&</span> {client?.groom_name}
-                      </button>
-                      <div className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
-                        <Camera size={10} />
-                        {photographer ? (
-                          <button onClick={() => openVendor(photographer.id)} className="hover:text-stone-900 hover:underline">{photographer.name}</button>
-                        ) : <span className="text-amber-700">Not assigned</span>}
-                      </div>
-                      <div className="space-y-1 mt-2">
-                        {evts.map(e => (
-                          <div key={e.id} className="text-sm text-stone-700 flex items-baseline gap-2 flex-wrap">
-                            {e.event_time && <span className="text-stone-500 text-xs tabular-nums">{e.event_time.slice(0, 5)}</span>}
-                            <span className="text-stone-900">{e.event_type}</span>
-                            {e.venue && <span className="text-xs text-stone-500 truncate">· {e.venue}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+            <div className="grid grid-cols-3 gap-3">
+              {calendarEvents.map(({ date, events: dayEvents }) => (
+                <div key={date.toISOString()} className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
+                  <div className="bg-white border-b border-stone-200 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">{date.toLocaleDateString('en-IN', { month: 'short' })}</div>
+                    <div className="text-xl font-semibold text-stone-900 leading-none">{date.getDate()}</div>
+                    <div className="text-[11px] text-stone-500 mt-0.5">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                   </div>
-                );
-              })}
+                  <div className="max-h-64 overflow-y-auto scrollbar-hide">
+                    {dayEvents.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-stone-400">No events</div>
+                    ) : (
+                      <div className="divide-y divide-stone-200">
+                        {dayEvents.map((event) => {
+                          const client = clients.find(c => c.id === event.client_id);
+                          const photographer = getProjectPhotographer(event.client_id);
+                          return (
+                            <button key={event.id} onClick={() => event.client_id && openClient(event.client_id)}
+                              className="w-full text-left px-3 py-3 hover:bg-stone-100/50 transition-colors">
+                              <div className="space-y-1">
+                                <div className="text-sm font-semibold text-stone-900 truncate">
+                                  {client ? `${client.bride_name} & ${client.groom_name}` : 'Unknown Client'}
+                                </div>
+                                <div className="text-xs text-stone-600 uppercase tracking-[0.15em] truncate">{event.event_type}</div>
+                                <div className="flex items-center gap-1 text-xs text-stone-500">
+                                  <Clock size={11} />
+                                  <span>{event.event_time ? event.event_time.slice(0, 5) : 'TBD'}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-stone-500 truncate">
+                                  <MapPin size={11} />
+                                  <span className="truncate">{event.venue || 'Venue TBD'}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-stone-500 truncate">
+                                  <Camera size={11} />
+                                  <span className="truncate">{photographer?.name || 'Photographer TBD'}</span>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -174,7 +212,19 @@ export function DashboardView({ data, openClient, openVendor }) {
 
 export function ScheduleView({ data, openClient }) {
   const { events, clients, projectVendors, vendors, loading } = data;
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
+  const [photographerFilter, setPhotographerFilter] = useState('');
   if (loading) return <Loader label="Loading schedule…" />;
+
+  const photographerOptions = useMemo(() => vendors.filter(v => v.vendor_type === 'photographer'), [vendors]);
+  const clientOptions = useMemo(() => clients, [clients]);
+
+  const getPhotographer = (clientId) => {
+    const pv = projectVendors.find(v => v.client_id === clientId && v.role === 'photographer');
+    return pv ? vendors.find(v => v.id === pv.vendor_id) : null;
+  };
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => {
@@ -185,37 +235,96 @@ export function ScheduleView({ data, openClient }) {
     });
   }, [events]);
 
+  const filteredEvents = useMemo(() => {
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(0, 0, 0, 0);
+
+    return sortedEvents.filter((event) => {
+      const eventDate = new Date(event.event_date);
+      eventDate.setHours(0, 0, 0, 0);
+
+      if (start && eventDate < start) return false;
+      if (end && eventDate > end) return false;
+
+      if (clientFilter) {
+        const client = clients.find(c => c.id === event.client_id);
+        const clientName = client ? `${client.bride_name} & ${client.groom_name}`.toLowerCase() : '';
+        if (!clientName.includes(clientFilter.toLowerCase())) return false;
+      }
+
+      if (photographerFilter) {
+        const photographer = getPhotographer(event.client_id);
+        const photogName = photographer?.name?.toLowerCase() || '';
+        if (!photogName.includes(photographerFilter.toLowerCase())) return false;
+      }
+
+      return true;
+    });
+  }, [sortedEvents, startDate, endDate, clientFilter, photographerFilter, clients, projectVendors, vendors]);
+
   const grouped = useMemo(() => {
     const map = new Map();
-    sortedEvents.forEach((event) => {
+    filteredEvents.forEach((event) => {
       const key = event.event_date;
       if (!map.has(key)) map.set(key, { date: new Date(event.event_date), events: [] });
       map.get(key).events.push(event);
     });
     return Array.from(map.values());
-  }, [sortedEvents]);
-
-  const getPhotographer = (clientId) => {
-    const pv = projectVendors.find(v => v.client_id === clientId && v.role === 'photographer');
-    return pv ? vendors.find(v => v.id === pv.vendor_id) : null;
-  };
+  }, [filteredEvents]);
 
   return (
     <div className="px-5 sm:px-8 lg:px-10 py-4">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4 mb-5">
+        <label className="block">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-2">Start Date</div>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+            className="w-full rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-400" />
+        </label>
+        <label className="block">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-2">End Date</div>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+            className="w-full rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-400" />
+        </label>
+        <label className="block">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-2">Client</div>
+          <input list="schedule-client-list" value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}
+            placeholder="Search client…"
+            className="w-full rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-400" />
+          <datalist id="schedule-client-list">
+            {clientOptions.map(client => (
+              <option key={client.id} value={`${client.bride_name} & ${client.groom_name}`} />
+            ))}
+          </datalist>
+        </label>
+        <label className="block">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-2">Photographer</div>
+          <input list="schedule-photographer-list" value={photographerFilter} onChange={(e) => setPhotographerFilter(e.target.value)}
+            placeholder="Search photographer…"
+            className="w-full rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-400" />
+          <datalist id="schedule-photographer-list">
+            {photographerOptions.map(photographer => (
+              <option key={photographer.id} value={photographer.name} />
+            ))}
+          </datalist>
+        </label>
+      </div>
+
       {grouped.length === 0 ? (
         <EmptyState icon={Calendar} title="No events scheduled" sub="Add events from the client detail page." />
       ) : (
         <div className="overflow-x-auto pb-3">
           <div className="min-w-[900px]">
-            <div className="grid grid-flow-col auto-cols-min gap-2">
+            <div className="grid grid-flow-col auto-cols-min gap-2 items-stretch">
               {grouped.map(({ date, events: dayEvents }) => (
-                <div key={date.toISOString()} className="min-w-[180px] bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                <div key={date.toISOString()} className="min-w-[180px] bg-white rounded-2xl border border-stone-200 overflow-hidden flex flex-col">
                   <div className="sticky top-0 z-10 bg-white border-b border-stone-200 px-2.5 py-2.5">
                     <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">{date.toLocaleDateString('en-IN', { month: 'short' })}</div>
                     <div className="text-xl font-semibold text-stone-900 leading-none">{date.getDate()}</div>
                     <div className="text-[11px] text-stone-500 mt-0.5">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                   </div>
-                  <div className="divide-y divide-stone-200">
+                  <div className="flex-1 overflow-y-auto scrollbar-hide max-h-[580px] divide-y divide-stone-200">
                     {dayEvents.map((event) => {
                       const client = clients.find(c => c.id === event.client_id);
                       const photographer = getPhotographer(event.client_id);
@@ -226,12 +335,12 @@ export function ScheduleView({ data, openClient }) {
                             <div className="text-sm font-semibold text-stone-900 truncate">{client ? `${client.bride_name} & ${client.groom_name}` : 'Unknown Client'}</div>
                             <div className="text-[11px] text-stone-500 uppercase tracking-[0.2em] truncate">{event.event_type}</div>
                             <div className="flex flex-wrap items-center gap-1 text-[11px] text-stone-600">
-                              <span className="inline-flex items-center gap-1"><Clock size={12} />{event.event_time ? event.event_time.slice(0, 5) : 'TBD'}</span>
-                              <span className="inline-flex items-center gap-1 truncate"><MapPin size={12} />{event.venue || 'Venue TBD'}</span>
+                              <span className="inline-flex items-center gap-1"><Clock size={12} />{event.event_time ? <span>{event.event_time.slice(0, 5)}</span> : <span className="text-red-400">TBD</span>}</span>
+                              <span className="inline-flex items-center gap-1 truncate"><MapPin size={12} />{event.venue ? <span>{event.venue}</span> : <span className="text-red-400">TBD</span>}</span>
                             </div>
                             <div className="flex items-center gap-1 text-[11px] text-stone-600 truncate">
                               <Camera size={12} />
-                              <span className="truncate">{photographer?.name || 'Photographer TBD'}</span>
+                              <span className="truncate">{photographer?.name || <span className="text-red-400">Not Assigned</span>}</span>
                             </div>
                           </div>
                         </button>
@@ -376,7 +485,7 @@ export function ClientsView({ data, openClient }) {
         </>
       )}
 
-      <ClientForm open={showForm} onClose={() => setShowForm(false)} onSaved={refresh.clients} />
+      <ClientForm open={showForm} onClose={() => setShowForm(false)} onSaved={refresh.all} />
     </div>
   );
 }
@@ -420,7 +529,7 @@ export function ClientDetailView({ data, clientId, openVendor }) {
   const pending = Number(c.total_amount || 0) - received;
   const totalExpense = cPV.reduce((s, v) => s + Number(v.agreed_amount || 0), 0);
   const expensePaid = cPV.reduce((s, v) => s + vendorPayments.filter(vp => vp.project_vendor_id === v.id).reduce((ss, vp) => ss + Number(vp.amount), 0), 0);
-  const profit = Number(c.total_amount || 0) - totalExpense;
+  const grossMarginPct = Number(c.total_amount || 0) > 0 ? Math.round(((Number(c.total_amount || 0) - totalExpense) / Number(c.total_amount || 0)) * 100) : 0;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -434,32 +543,7 @@ export function ClientDetailView({ data, clientId, openVendor }) {
   const refreshAll = () => { refresh.all(); };
 
   return (
-    <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8 space-y-6">
-      <div className="bg-white rounded-lg border border-stone-200/70 p-5 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <span className={`inline-block px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-wider ${statusColor(c.status)}`}>{c.status}</span>
-              <span className="text-xs text-stone-500">{c.package}</span>
-              <button onClick={() => setEditClient(true)} className="text-xs text-stone-500 hover:text-stone-900 flex items-center gap-1 ml-auto sm:ml-0">
-                <Edit2 size={11} />Edit
-              </button>
-            </div>
-            <div className="text-xs text-stone-500 space-y-1">
-              {c.phone && <div className="flex items-center gap-2"><Phone size={11} />{c.phone}</div>}
-              {c.email && <div className="flex items-center gap-2"><Mail size={11} />{c.email}</div>}
-              {c.city && <div className="flex items-center gap-2"><MapPin size={11} />{c.city}</div>}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 flex-1">
-            <SmallStat label="Booking" value={fmtINRshort(c.total_amount)} />
-            <SmallStat label="Received" value={fmtINRshort(received)} color="text-emerald-700" />
-            <SmallStat label="Pending" value={fmtINRshort(pending)} color={pending > 0 ? "text-amber-700" : "text-stone-700"} />
-            <SmallStat label="Profit" value={fmtINRshort(profit)} color={profit > 0 ? "text-emerald-700" : "text-red-700"} />
-          </div>
-        </div>
-      </div>
-
+    <div className="px-5 sm:px-8 lg:px-10 py-4 sm:py-6 space-y-6">
       <div className="border-b border-stone-200/70 overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {tabs.map(t => (
@@ -471,35 +555,188 @@ export function ClientDetailView({ data, clientId, openVendor }) {
       </div>
 
       {tab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <div className="bg-white rounded-lg border border-stone-200/70 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="display text-base text-stone-900">Next Event</h3>
-              <button onClick={() => setTab('events')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
-            </div>
-            {cEvents.find(e => new Date(e.event_date) >= new Date()) ? (() => {
-              const next = cEvents.find(e => new Date(e.event_date) >= new Date());
-              return (
-                <div>
-                  <div className="display text-xl text-stone-900">{next.event_type}</div>
-                  <div className="text-sm text-stone-700 mt-1">{fmtDateLong(next.event_date)}{next.event_time ? ` · ${next.event_time.slice(0, 5)}` : ''}</div>
-                  {next.venue && <div className="text-xs text-stone-500 mt-1 flex items-center gap-1"><MapPin size={11} />{next.venue}</div>}
+        <div className="space-y-5">
+          {/* Client Info & Financials */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Client Details */}
+            <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
+              <h3 className="display text-lg text-stone-900 mb-3">Project Info</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Left Column */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Status</div>
+                    <span className={`inline-block px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-wider ${statusColor(c.status)}`}>{c.status}</span>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">City</div>
+                    <div className="text-sm text-stone-900">{c.city || '—'}</div>
+                  </div>
                 </div>
-              );
-            })() : <div className="text-sm text-stone-500">No upcoming events</div>}
-          </div>
-          <div className="bg-white rounded-lg border border-stone-200/70 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="display text-base text-stone-900">Latest Payment</h3>
-              <button onClick={() => setTab('payments')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
-            </div>
-            {cPayments[0] ? (
-              <div>
-                <div className="display text-xl text-emerald-700">+{fmtINR(cPayments[0].amount)}</div>
-                <div className="text-sm text-stone-700 mt-1">{fmtDateLong(cPayments[0].payment_date)} · {cPayments[0].mode}</div>
-                {cPayments[0].notes && <div className="text-xs text-stone-500 mt-1">{cPayments[0].notes}</div>}
+                {/* Right Column */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Phone</div>
+                    <div className="text-sm text-stone-900">{c.phone || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Email</div>
+                    <div className="text-sm text-stone-900 truncate">{c.email || '—'}</div>
+                  </div>
+                </div>
               </div>
-            ) : <div className="text-sm text-stone-500">No payments yet</div>}
+              {/* Date Fields Row */}
+              <div className="flex gap-4 mt-4 pt-4 border-t border-stone-100">
+                <div className="flex-1">
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Lead Created At</div>
+                  <div className="text-sm text-stone-900">{fmtDate(c.lead_created_at)}</div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Booking Date</div>
+                  <div className="text-sm text-stone-900">{c.booking_date ? fmtDate(c.booking_date) : 'Not Booked Yet'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
+              <h3 className="display text-lg text-stone-900 mb-3">Financial Summary</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Booking Amount</div>
+                  <div className="display text-lg text-stone-900">{fmtINRshort(c.total_amount)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Received</div>
+                  <div className="display text-lg text-emerald-700">{fmtINRshort(received)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Pending</div>
+                  <div className={`display text-lg ${pending > 0 ? 'text-amber-700' : 'text-stone-700'}`}>{fmtINRshort(pending)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mb-1">Gross Margin %</div>
+                  <div className={`display text-lg ${grossMarginPct >= 40 ? 'text-emerald-700' : grossMarginPct >= 25 ? 'text-amber-700' : 'text-red-700'}`}>{grossMarginPct}%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Events & Latest Payments in Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Upcoming Events */}
+            <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="display text-lg text-stone-900">Upcoming Events</h3>
+                <button onClick={() => setTab('events')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
+              </div>
+              {cEvents.filter(e => new Date(e.event_date) >= new Date()).length === 0 ? (
+                <div className="text-sm text-stone-500">No upcoming events</div>
+              ) : (
+                <div className="space-y-2">
+                  {cEvents.filter(e => new Date(e.event_date) >= new Date()).slice(0, 2).map((e, i) => {
+                    const photographer = cPV.find(v => v.role === 'photographer')?.vendor_id ? vendors.find(v => v.id === cPV.find(vv => vv.role === 'photographer')?.vendor_id) : null;
+                    return (
+                      <button key={e.id} onClick={() => setEventForm({ open: true, initial: e })} className={`w-full flex gap-3 p-2 rounded hover:bg-stone-50 text-left text-xs ${i !== 1 && cEvents.filter(ee => new Date(ee.event_date) >= new Date()).slice(0, 2).length > 1 ? 'border-b border-stone-100 pb-2' : ''}`}>
+                        <div className="flex-shrink-0 w-10 text-center">
+                          <div className="text-[10px] uppercase tracking-wider text-stone-500">{new Date(e.event_date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                          <div className="display text-base text-stone-900 leading-none mt-0.5">{new Date(e.event_date).getDate()}</div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-stone-900">{e.event_type}</div>
+                          <div className="text-xs text-stone-500 mt-0.5 space-y-0.5">
+                            {e.event_time && <div className="flex items-center gap-1"><Clock size={10} />{e.event_time.slice(0, 5)}</div>}
+                            {e.venue && <div className="flex items-center gap-1"><MapPin size={10} />{e.venue}</div>}
+                            {photographer && <div className="flex items-center gap-1"><Camera size={10} />{photographer.name}</div>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Latest Payments */}
+            <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="display text-lg text-stone-900">Latest Payments</h3>
+                <button onClick={() => setTab('payments')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
+              </div>
+              {cPayments.length === 0 ? (
+                <div className="text-sm text-stone-500">No payments yet</div>
+              ) : (
+                <div className="space-y-2">
+                  {cPayments.slice(0, 2).map((p, i) => (
+                    <button key={p.id} onClick={() => setPaymentForm({ open: true, initial: p })} className={`w-full flex items-center justify-between gap-3 p-2 rounded hover:bg-stone-50 text-left text-xs ${i === 0 && cPayments.length > 1 ? 'border-b border-stone-100 pb-2' : ''}`}>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-medium text-stone-900 truncate">{p.notes || (p.payment_type ? `${p.payment_type} payment` : 'Payment')}</div>
+                          {p.payment_type && (
+                            <span className="inline-flex rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-stone-500">{p.payment_type}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-stone-500 mt-0.5">{fmtDate(p.payment_date)} · {p.mode}</div>
+                      </div>
+                      <div className="text-sm display text-emerald-700 font-medium flex-shrink-0">+{fmtINRshort(p.amount)}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upcoming Tasks & Overdue Tasks in Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Upcoming Tasks */}
+            <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="display text-lg text-stone-900">Upcoming Tasks</h3>
+                <button onClick={() => setTab('tasks')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
+              </div>
+              {cTasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) >= new Date()).length === 0 ? (
+                <div className="text-sm text-stone-500">No pending tasks</div>
+              ) : (
+                <div className="space-y-2">
+                  {cTasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) >= new Date()).slice(0, 3).map(t => (
+                    <button key={t.id} onClick={() => setTaskForm({ open: true, initial: t })} className="w-full flex items-start gap-3 p-2 rounded hover:bg-stone-50 text-left text-xs">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-stone-900 font-medium truncate">{t.title}</div>
+                        <div className="text-stone-500 mt-0.5">Due {fmtDateShort(t.due_date)}</div>
+                      </div>
+                      <div className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] uppercase font-medium ${t.priority === 'high' ? 'bg-red-100 text-red-700' : t.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                        {t.priority || 'medium'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Overdue Tasks */}
+            <div className={`bg-white rounded-lg border-2 p-4 sm:p-5 ${cTasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date()).length > 0 ? 'border-red-200 bg-red-50/30' : 'border-stone-200/70'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="display text-lg text-stone-900">Overdue Tasks</h3>
+                <button onClick={() => setTab('tasks')} className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900">View all</button>
+              </div>
+              {cTasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date()).length === 0 ? (
+                <div className="text-sm text-stone-500">No overdue tasks</div>
+              ) : (
+                <div className="space-y-2">
+                  {cTasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date()).map(t => (
+                    <button key={t.id} onClick={() => setTaskForm({ open: true, initial: t })} className="w-full flex items-start gap-3 p-2 rounded hover:bg-red-100/50 text-left text-xs">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-stone-900 font-medium truncate">{t.title}</div>
+                        <div className="text-red-700 font-medium">{Math.abs(daysLeft(t.due_date))}d overdue</div>
+                      </div>
+                      <div className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] uppercase font-medium ${t.priority === 'high' ? 'bg-red-200 text-red-800' : t.priority === 'medium' ? 'bg-amber-200 text-amber-800' : 'bg-stone-200 text-stone-700'}`}>
+                        {t.priority || 'medium'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -546,7 +783,12 @@ export function ClientDetailView({ data, clientId, openVendor }) {
               {cPayments.map((p, i) => (
                 <button key={p.id} onClick={() => setPaymentForm({ open: true, initial: p })} className={`w-full flex items-center justify-between gap-4 p-4 hover:bg-stone-50/50 text-left ${i !== cPayments.length - 1 ? 'border-b border-stone-100' : ''}`}>
                   <div>
-                    <div className="text-sm text-stone-900">{p.notes || 'Payment'}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-sm text-stone-900">{p.notes || (p.payment_type ? `${p.payment_type} payment` : 'Payment')}</div>
+                      {p.payment_type && (
+                        <span className="inline-flex rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-stone-500">{p.payment_type}</span>
+                      )}
+                    </div>
                     <div className="text-xs text-stone-500 mt-0.5">{fmtDate(p.payment_date)} · {p.mode}</div>
                   </div>
                   <div className="display text-lg text-emerald-700">+{fmtINR(p.amount)}</div>
@@ -1039,6 +1281,11 @@ export function TasksView({ data, openClient }) {
                             className={`p-1 rounded ${t.is_deliverable ? 'bg-[#6B1F2E] text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}>
                             <Package size={12} />
                           </button>
+                          {t.is_client_issue && (
+                            <span className="p-1 rounded bg-red-100 text-red-600 flex-shrink-0" title="Client Issue">
+                              <AlertCircle size={12} />
+                            </span>
+                          )}
                           <span className="truncate" title={t.title}>{t.title}</span>
                         </div>
                       </td>
@@ -1363,6 +1610,165 @@ export function AccountingView({ data, openClient, openVendor }) {
 
       <PaymentForm open={paymentForm} onClose={() => setPaymentForm(false)} onSaved={refresh.all} clients={clients} />
       <ExpenseForm open={expenseForm} onClose={() => setExpenseForm(false)} onSaved={refresh.all} />
+    </div>
+  );
+}
+
+// ============ SUPPORT TICKETS ============
+export function SupportTicketsView({ data, openClient }) {
+  const { tasks, clients, refresh } = data;
+  const [filter, setFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [taskForm, setTaskForm] = useState({ open: false, initial: null });
+
+  // Base: client issues only, done tickets auto-excluded
+  const tickets = tasks.filter(t => t.is_client_issue && t.status !== 'done');
+  const assignees = [...new Set(tickets.map(t => t.assigned_to).filter(Boolean))];
+  const clientIds = [...new Set(tickets.map(t => t.client_id).filter(Boolean))];
+
+  const filtered = tickets.filter(t => {
+    if (filter !== 'all' && t.status !== filter) return false;
+    if (clientFilter !== 'all' && String(t.client_id) !== clientFilter) return false;
+    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
+    if (assigneeFilter !== 'all' && t.assigned_to !== assigneeFilter) return false;
+
+    if (dateFilter !== 'all') {
+      const due = t.due_date ? new Date(t.due_date) : null;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dueDay = due ? new Date(due.getFullYear(), due.getMonth(), due.getDate()) : null;
+
+      if (dateFilter === 'today') {
+        if (!dueDay || dueDay.getTime() !== today.getTime()) return false;
+      }
+      if (dateFilter === 'overdue') {
+        if (!due || due >= now) return false;
+      }
+      if (dateFilter === 'upcoming') {
+        if (!due || dueDay < today) return false;
+      }
+    }
+
+    return true;
+  });
+
+  const toggleDeliverable = async (t, e) => {
+    e.stopPropagation();
+    const { updateRow } = await import('../dataHooks');
+    await updateRow('tasks', t.id, { is_deliverable: !t.is_deliverable });
+    refresh.all();
+  };
+
+  return (
+    <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5 flex-wrap">
+        <div className="flex gap-1 bg-white border border-stone-200/70 rounded-md p-1">
+          {['all', 'pending', 'in_progress'].map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded text-[10px] uppercase tracking-wider ${filter === f ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}>
+              {f.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+        <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All projects</option>
+          {clientIds.map(cid => {
+            const c = clients.find(x => x.id === cid);
+            return c ? <option key={cid} value={String(cid)}>{c.bride_name} & {c.groom_name}</option> : null;
+          })}
+        </select>
+        <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All due dates</option>
+          <option value="today">Today</option>
+          <option value="overdue">Overdue</option>
+          <option value="upcoming">Upcoming</option>
+        </select>
+        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All priorities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="px-3 py-2 bg-white border border-stone-200 rounded-md text-sm">
+          <option value="all">All assignees</option>
+          {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <button onClick={() => setTaskForm({ open: true, initial: null })} className="flex items-center gap-2 bg-stone-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm sm:ml-auto">
+          <Plus size={14} />Add Issue
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState title={tickets.length === 0 ? 'No open client issues' : 'No issues match these filters'}
+          sub={tickets.length === 0 ? 'Mark tasks as "Client Issue" to track them here.' : undefined} />
+      ) : (
+        <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-stone-50 border-b border-stone-200">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Title</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Assignee</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filtered.map(t => {
+                  const client = clients.find(c => c.id === t.client_id);
+                  const isOverdue = t.due_date && new Date(t.due_date) < new Date();
+                  return (
+                    <tr key={t.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setTaskForm({ open: true, initial: t })}>
+                      <td className={`px-3 py-2.5 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-stone-900'}`}>
+                        {t.due_date ? fmtDateShort(t.due_date) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[240px] truncate">
+                        <div className="flex items-center gap-2">
+                          <button onClick={e => toggleDeliverable(t, e)} title={t.is_deliverable ? 'Marked as deliverable' : 'Mark as deliverable'}
+                            className={`p-1 rounded ${t.is_deliverable ? 'bg-[#6B1F2E] text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}>
+                            <Package size={12} />
+                          </button>
+                          <span className="truncate" title={t.title}>{t.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[180px] truncate">
+                        {client ? (
+                          <button onClick={e => { e.stopPropagation(); openClient(client.id); }} className="hover:text-stone-900 hover:underline truncate" title={`${client.bride_name} & ${client.groom_name}`}>
+                            {client.bride_name} & {client.groom_name}
+                          </button>
+                        ) : <span className="px-2 py-1 bg-stone-100 rounded text-stone-600 text-xs uppercase tracking-wider">Internal</span>}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={t.assigned_to}>{t.assigned_to}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
+                          {t.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900">
+                        <span className={`capitalize ${t.priority === 'high' ? 'text-red-600' : t.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-stone-500 max-w-[220px] truncate" title={t.description || undefined}
+                        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.description || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} initial={taskForm.initial} />
     </div>
   );
 }

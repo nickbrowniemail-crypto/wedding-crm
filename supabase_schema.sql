@@ -9,6 +9,7 @@ CREATE TYPE vendor_type AS ENUM ('photographer', 'cinematic_editor', 'traditiona
 CREATE TYPE task_status AS ENUM ('pending', 'in_progress', 'done');
 CREATE TYPE priority AS ENUM ('low', 'medium', 'high');
 CREATE TYPE expense_category AS ENUM ('Salary', 'Rent', 'Utilities', 'Equipment', 'Marketing', 'Other');
+CREATE TYPE payment_type AS ENUM ('Advance', 'Token', 'Other');
 
 -- ============ CLIENTS ============
 CREATE TABLE clients (
@@ -22,6 +23,8 @@ CREATE TABLE clients (
   total_amount NUMERIC(12, 2) DEFAULT 0,
   status client_status DEFAULT 'Lead',
   notes TEXT,
+  booking_date DATE,
+  lead_created_at DATE DEFAULT CURRENT_DATE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -78,6 +81,7 @@ CREATE TABLE payments (
   client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   amount NUMERIC(12, 2) NOT NULL,
   payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_type payment_type NOT NULL DEFAULT 'Advance',
   mode TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -125,6 +129,7 @@ CREATE TABLE tasks (
   status task_status DEFAULT 'pending',
   priority priority DEFAULT 'medium',
   is_deliverable BOOLEAN DEFAULT FALSE,
+  is_client_issue BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -133,6 +138,7 @@ CREATE INDEX idx_tasks_client ON tasks(client_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_due ON tasks(due_date);
 CREATE INDEX idx_tasks_deliverable ON tasks(is_deliverable) WHERE is_deliverable = TRUE;
+CREATE INDEX idx_tasks_client_issue ON tasks(is_client_issue) WHERE is_client_issue = TRUE;
 
 -- ============ DELIVERABLES ============
 CREATE TABLE deliverables (

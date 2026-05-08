@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, Wallet, Briefcase, CheckSquare, Package,
-  Menu, ChevronLeft, Calendar
+  Menu, ChevronLeft, Calendar, LifeBuoy
 } from 'lucide-react';
 import { useTable } from './dataHooks';
 import Sidebar from './components/Sidebar';
 import {
   DashboardView, ScheduleView, ClientsView, ClientDetailView,
-  VendorsView, VendorDetailView, TasksView, DeliverablesView, AccountingView
+  VendorsView, VendorDetailView, TasksView, DeliverablesView, AccountingView,
+  SupportTicketsView
 } from './components/Views';
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
   { id: 'clients', label: 'Clients', icon: Users },
   { id: 'vendors', label: 'Vendors', icon: Briefcase },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+  { id: 'support', label: 'Support Tickets', icon: LifeBuoy },
   { id: 'deliverables', label: 'Deliverables', icon: Package },
   { id: 'accounting', label: 'Accounting', icon: Wallet },
 ];
@@ -109,6 +111,7 @@ function CRM() {
         {view === 'vendors' && <VendorsView data={data} openVendor={openVendor} />}
         {view === 'vendorDetail' && <VendorDetailView data={data} vendorId={selectedVendorId} openClient={openClient} />}
         {view === 'tasks' && <TasksView data={data} openClient={openClient} />}
+        {view === 'support' && <SupportTicketsView data={data} openClient={openClient} />}
         {view === 'deliverables' && <DeliverablesView data={data} openClient={openClient} />}
         {view === 'accounting' && <AccountingView data={data} openClient={openClient} openVendor={openVendor} />}
       </main>
@@ -130,26 +133,40 @@ function Header({ view, clients, vendors, selectedClientId, selectedVendorId, on
     eyebrow = 'Vendor'; title = v?.name || 'Vendor';
   }
   else if (view === 'tasks') { eyebrow = 'Work'; title = 'Tasks'; }
+  else if (view === 'support') { eyebrow = 'Client Relations'; title = 'Support Tickets'; }
   else if (view === 'deliverables') { eyebrow = 'Output'; title = 'Deliverables'; }
   else if (view === 'schedule') { eyebrow = 'Schedule'; title = 'Event Calendar'; }
   else if (view === 'accounting') { eyebrow = 'Finance'; title = 'Accounting'; }
 
   const isDetail = view === 'clientDetail' || view === 'vendorDetail';
+  const isDashboard = view === 'dashboard';
 
   return (
-    <header className="px-5 sm:px-8 lg:px-10 py-5 sm:py-7 flex items-center justify-between border-b border-stone-200/70 gap-3 bg-[#FDFBF7]">
+    <header className={`px-5 sm:px-8 lg:px-10 ${isDashboard ? 'py-3 sm:py-4' : 'py-5 sm:py-7'} flex items-center justify-between border-b border-stone-200/70 gap-3 bg-[#FDFBF7]`}>
       <div className="flex items-center gap-3 min-w-0">
         <button onClick={onMenuClick} className="md:hidden text-stone-700 flex-shrink-0">
           <Menu size={20} />
         </button>
+        <div className="md:hidden min-w-0">
+          <div className="brand-font text-base font-semibold tracking-[0.08em] text-stone-900 leading-none whitespace-nowrap">
+            WeddingQueen
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mt-0.5 font-light">Master Console</div>
+        </div>
         {isDetail && (
           <button onClick={onBack} className="flex items-center gap-1 text-xs uppercase tracking-wider text-stone-500 hover:text-stone-900 mr-2 flex-shrink-0">
             <ChevronLeft size={14} />Back
           </button>
         )}
         <div className="min-w-0">
-          <div className="text-[10px] sm:text-xs uppercase tracking-[0.25em] text-stone-500 mb-0.5 sm:mb-1">{eyebrow}</div>
-          <h1 className="display text-xl sm:text-2xl lg:text-3xl text-stone-900 truncate">{title}</h1>
+          {isDashboard ? (
+            <h1 className="luxury-heading text-2xl sm:text-3xl font-light tracking-[0.04em] text-stone-900 leading-tight">Welcome Buddy</h1>
+          ) : (
+            <>
+              <div className="text-[10px] sm:text-xs uppercase tracking-[0.25em] text-stone-500 mb-0.5 sm:mb-1">{eyebrow}</div>
+              <h1 className="display text-xl sm:text-2xl lg:text-3xl text-stone-900 truncate">{title}</h1>
+            </>
+          )}
         </div>
       </div>
     </header>

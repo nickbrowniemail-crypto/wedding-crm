@@ -3,35 +3,109 @@ import { Modal, Field, PrimaryButton, SecondaryButton, DangerButton } from './UI
 import { insertRow, updateRow, deleteRow } from '../dataHooks';
 import {
   CLIENT_STATUSES, PACKAGES, VENDOR_TYPES, EVENT_TYPES,
-  TASK_STATUSES, PRIORITIES, PAYMENT_MODES, EXPENSE_CATEGORIES
+  TASK_STATUSES, PRIORITIES, PAYMENT_MODES, PAYMENT_TYPES, EXPENSE_CATEGORIES
 } from '../utils';
 
 // ============ CLIENT FORM ============
 export function ClientForm({ open, onClose, onSaved, initial }) {
   const [f, setF] = useState({
     bride_name: '', groom_name: '', phone: '', email: '', city: '',
-    package: 'Gold', total_amount: '', status: 'Lead', notes: ''
+    package: 'Gold', total_amount: '', status: 'Lead', notes: '',
+    token_received: false, token_amount: '', token_date: new Date().toISOString().slice(0, 10), token_mode: 'UPI', token_account: '',
+    advance_amount: '', advance_date: new Date().toISOString().slice(0, 10), advance_mode: 'UPI', advance_account: '',
+    lead_created_at: new Date().toISOString().slice(0, 10)
   });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
-    if (initial) setF({ ...initial, total_amount: initial.total_amount || '' });
-    else setF({ bride_name: '', groom_name: '', phone: '', email: '', city: '', package: 'Gold', total_amount: '', status: 'Lead', notes: '' });
+    if (initial) setF({
+      ...initial,
+      total_amount: initial.total_amount || '',
+      token_received: false,
+      token_amount: '',
+      token_date: new Date().toISOString().slice(0, 10),
+      token_mode: 'UPI',
+      token_account: '',
+      advance_amount: '',
+      advance_date: new Date().toISOString().slice(0, 10),
+      advance_mode: 'UPI',
+      advance_account: '',
+      lead_created_at: initial.lead_created_at ? initial.lead_created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)
+    });
+    else setF({
+      bride_name: '', groom_name: '', phone: '', email: '', city: '',
+      package: 'Gold', total_amount: '', status: 'Lead', notes: '',
+      token_received: false, token_amount: '', token_date: new Date().toISOString().slice(0, 10), token_mode: 'UPI', token_account: '',
+      advance_amount: '', advance_date: new Date().toISOString().slice(0, 10), advance_mode: 'UPI', advance_account: '',
+      lead_created_at: new Date().toISOString().slice(0, 10)
+    });
   }, [initial, open]);
 
   const u = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const valid = f.bride_name && f.groom_name;
+  const tokenValid = !f.token_received || (Number(f.token_amount) > 0 && f.token_date && f.token_mode && f.token_account);
+  const advanceValid = Number(f.advance_amount) > 0 ? (f.advance_date && f.advance_mode && f.advance_account) : true;
+  const valid = f.bride_name && f.groom_name && f.total_amount !== '' && tokenValid && advanceValid;
 
   const save = async () => {
     setSaving(true);
     try {
-      const payload = { ...f, total_amount: Number(f.total_amount) || 0 };
-      if (isEdit) await updateRow('clients', initial.id, payload);
-      else await insertRow('clients', payload);
+      const tokenReceived = f.token_received && Number(f.token_amount) > 0;
+      const advanceReceived = Number(f.advance_amount) > 0;
+      const status = advanceReceived ? 'Booked' : 'Lead';
+      const clientPayload = {
+        bride_name: f.bride_name,
+        groom_name: f.groom_name,
+        phone: f.phone,
+        email: f.email,
+        city: f.city,
+        package: f.package,
+        total_amount: Number(f.total_amount) || 0,
+        status,
+        notes: f.notes,
+        lead_created_at: f.lead_created_at || null,
+        booking_date: advanceReceived ? f.advance_date : null
+      };
+
+      console.log('[ClientForm] save clientPayload', clientPayload, { tokenReceived, advanceReceived });
+      if (isEdit) {
+        const updatedClient = await updateRow('clients', initial.id, clientPayload);
+        console.log('[ClientForm] updated client', updatedClient);
+      } else {
+        const newClient = await insertRow('clients', clientPayload);
+        console.log('[ClientForm] created client', newClient);
+
+        if (tokenReceived) {
+          const tokenPayment = await insertRow('payments', {
+            client_id: newClient.id,
+            amount: Number(f.token_amount) || 0,
+            payment_date: f.token_date,
+            mode: f.token_mode,
+            notes: `Token · ${f.token_account}`,
+            payment_type: 'Token'
+          });
+          console.log('[ClientForm] created token payment', tokenPayment);
+        }
+
+        if (advanceReceived) {
+          const advancePayment = await insertRow('payments', {
+            client_id: newClient.id,
+            amount: Number(f.advance_amount) || 0,
+            payment_date: f.advance_date,
+            mode: f.advance_mode,
+            notes: `Advance · ${f.advance_account}`,
+            payment_type: 'Advance'
+          });
+          console.log('[ClientForm] created advance payment', advancePayment);
+        }
+      }
+
       onSaved?.();
       onClose();
-    } catch (e) { alert(e.message); }
+    } catch (e) {
+      console.error('[ClientForm] save error', e);
+      alert(e.message);
+    }
     setSaving(false);
   };
 
@@ -45,22 +119,69 @@ export function ClientForm({ open, onClose, onSaved, initial }) {
 
   return (
     <Modal open={open} onClose={onClose} eyebrow={isEdit ? 'Edit Client' : 'New Client'} title={isEdit ? 'Update details' : 'Add a wedding'}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Bride" required value={f.bride_name} onChange={(v) => u('bride_name', v)} placeholder="Aanya" />
-          <Field label="Groom" required value={f.groom_name} onChange={(v) => u('groom_name', v)} placeholder="Arjun" />
+      <div className="space-y-5">
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Couple Information</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Bride" required value={f.bride_name} onChange={(v) => u('bride_name', v)} placeholder="Aanya" />
+            <Field label="Groom" required value={f.groom_name} onChange={(v) => u('groom_name', v)} placeholder="Arjun" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone" value={f.phone} onChange={(v) => u('phone', v)} placeholder="+91…" />
+            <Field label="City" value={f.city} onChange={(v) => u('city', v)} placeholder="Udaipur" />
+          </div>
+          <Field label="Email" value={f.email} onChange={(v) => u('email', v)} placeholder="couple@email.com" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Phone" value={f.phone} onChange={(v) => u('phone', v)} placeholder="+91…" />
-          <Field label="City" value={f.city} onChange={(v) => u('city', v)} placeholder="Udaipur" />
+
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Booking Information</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Total Deal (₹)" type="number" value={f.total_amount} onChange={(v) => u('total_amount', v)} placeholder="100000" />
+            <Field label="Package" type="select" value={f.package} onChange={(v) => u('package', v)} options={PACKAGES} />
+          </div>
+
+          {!isEdit && (
+            <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+              <label className="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" checked={f.token_received} onChange={(e) => u('token_received', e.target.checked)} className="rounded border-stone-300 text-[#6B1F2E] focus:ring-[#6B1F2E]" />
+                Token Received
+              </label>
+              {f.token_received && (
+                <div className="mt-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Token Amount (₹)" type="number" value={f.token_amount} onChange={(v) => u('token_amount', v)} placeholder="1000" />
+                    <Field label="Token Received Date" type="date" value={f.token_date} onChange={(v) => u('token_date', v)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Token Payment Method" type="select" value={f.token_mode} onChange={(v) => u('token_mode', v)} options={PAYMENT_MODES} />
+                    <Field label="Token Account Name" value={f.token_account} onChange={(v) => u('token_account', v)} placeholder="UPI / account name" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="text-sm font-medium text-stone-900 mb-3">Advance Payment</div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Advance Amount (₹)" type="number" value={f.advance_amount} onChange={(v) => u('advance_amount', v)} placeholder="10000" />
+              <Field label="Advance Received Date" type="date" value={f.advance_date} onChange={(v) => u('advance_date', v)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Field label="Advance Payment Method" type="select" value={f.advance_mode} onChange={(v) => u('advance_mode', v)} options={PAYMENT_MODES} />
+              <Field label="Advance Account Name" value={f.advance_account} onChange={(v) => u('advance_account', v)} placeholder="Bank / UPI account" />
+            </div>
+          </div>
         </div>
-        <Field label="Email" value={f.email} onChange={(v) => u('email', v)} placeholder="couple@email.com" />
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Package" type="select" value={f.package} onChange={(v) => u('package', v)} options={PACKAGES} />
-          <Field label="Total Amount (₹)" type="number" value={f.total_amount} onChange={(v) => u('total_amount', v)} placeholder="350000" />
-        </div>
-        <Field label="Status" type="select" value={f.status} onChange={(v) => u('status', v)} options={CLIENT_STATUSES} />
-        <Field label="Notes" type="textarea" value={f.notes} onChange={(v) => u('notes', v)} placeholder="Any internal notes…" />
+
+        {!isEdit && (
+          <div className="space-y-3">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Lead Information</div>
+            <Field label="Lead Created At" type="date" value={f.lead_created_at} onChange={(v) => u('lead_created_at', v)} />
+          </div>
+        )}
+
+        <Field label="Internal Notes" type="textarea" value={f.notes} onChange={(v) => u('notes', v)} placeholder="Any internal notes…" />
       </div>
       <div className="flex gap-3 mt-7">
         {isEdit && <DangerButton onClick={remove}>Delete</DangerButton>}
@@ -222,13 +343,13 @@ export function ProjectVendorForm({ open, onClose, onSaved, clientId, vendors, i
 
 // ============ CLIENT PAYMENT (income) ============
 export function PaymentForm({ open, onClose, onSaved, clientId, clients, initial }) {
-  const [f, setF] = useState({ client_id: clientId || '', amount: '', payment_date: new Date().toISOString().slice(0, 10), mode: 'UPI', notes: '' });
+  const [f, setF] = useState({ client_id: clientId || '', amount: '', payment_date: new Date().toISOString().slice(0, 10), mode: 'UPI', payment_type: 'Advance', notes: '' });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
-    if (initial) setF({ ...initial, amount: initial.amount || '' });
-    else setF({ client_id: clientId || '', amount: '', payment_date: new Date().toISOString().slice(0, 10), mode: 'UPI', notes: '' });
+    if (initial) setF({ ...initial, amount: initial.amount || '', payment_type: initial.payment_type || 'Advance' });
+    else setF({ client_id: clientId || '', amount: '', payment_date: new Date().toISOString().slice(0, 10), mode: 'UPI', payment_type: 'Advance', notes: '' });
   }, [initial, open, clientId]);
 
   const u = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -261,7 +382,10 @@ export function PaymentForm({ open, onClose, onSaved, clientId, clients, initial
           <Field label="Amount (₹)" type="number" required value={f.amount} onChange={(v) => u('amount', v)} />
           <Field label="Date" type="date" required value={f.payment_date} onChange={(v) => u('payment_date', v)} />
         </div>
-        <Field label="Mode" type="select" value={f.mode} onChange={(v) => u('mode', v)} options={PAYMENT_MODES} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type" type="select" value={f.payment_type} onChange={(v) => u('payment_type', v)} options={PAYMENT_TYPES} />
+          <Field label="Mode" type="select" value={f.mode} onChange={(v) => u('mode', v)} options={PAYMENT_MODES} />
+        </div>
         <Field label="Notes" type="textarea" value={f.notes} onChange={(v) => u('notes', v)} placeholder="Booking advance, balance, etc." />
       </div>
       <div className="flex gap-3 mt-7">
@@ -333,7 +457,7 @@ export function VendorPaymentForm({ open, onClose, onSaved, projectVendorId, pro
 export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClientId }) {
   const [f, setF] = useState({
     client_id: defaultClientId || '', title: '', description: '', assigned_to: '',
-    due_date: '', status: 'pending', priority: 'medium', is_deliverable: false
+    due_date: '', status: 'pending', priority: 'medium', is_deliverable: false, is_client_issue: false
   });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
@@ -342,7 +466,7 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
     if (initial) setF({ ...initial, client_id: initial.client_id || '' });
     else setF({
       client_id: defaultClientId || '', title: '', description: '', assigned_to: '',
-      due_date: '', status: 'pending', priority: 'medium', is_deliverable: false
+      due_date: '', status: 'pending', priority: 'medium', is_deliverable: false, is_client_issue: false
     });
   }, [initial, open, defaultClientId]);
 
@@ -384,6 +508,13 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
           <Field label="Priority" type="select" value={f.priority} onChange={(v) => u('priority', v)} options={PRIORITIES} />
         </div>
         <Field label="Description" type="textarea" value={f.description} onChange={(v) => u('description', v)} />
+        <div className="rounded-xl border border-red-100 bg-red-50/50 p-3">
+          <label className="flex items-center gap-2 text-sm text-stone-800 cursor-pointer font-medium">
+            <input type="checkbox" checked={f.is_client_issue} onChange={(e) => u('is_client_issue', e.target.checked)} className="rounded border-red-300 text-[#6B1F2E] focus:ring-[#6B1F2E]" />
+            Client Issue
+          </label>
+          <div className="text-xs text-stone-500 mt-1 ml-5">Appears in Support Tickets section for client-facing issue tracking</div>
+        </div>
         <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
           <input type="checkbox" checked={f.is_deliverable} onChange={(e) => u('is_deliverable', e.target.checked)} className="rounded" />
           Mark as deliverable (also shows in Deliverables section)
