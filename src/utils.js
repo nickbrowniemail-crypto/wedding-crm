@@ -51,4 +51,5 @@ export const TASK_STATUSES = ['pending', 'in_progress', 'done'];
 export const PRIORITIES = ['low', 'medium', 'high'];
 export const PACKAGES = ['Silver', 'Gold', 'Platinum', 'Bespoke'];
 export const PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card'];
+export const PAYMENT_TYPES = ['Advance', 'Token', 'Other'];
 export const EXPENSE_CATEGORIES = ['Salary', 'Rent', 'Utilities', 'Equipment', 'Marketing', 'Other'];

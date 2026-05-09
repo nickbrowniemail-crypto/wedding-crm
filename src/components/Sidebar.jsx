@@ -4,10 +4,12 @@ export default function Sidebar({ navItems, view, onNav, hidden, mobile, onClose
 
   return (
     <aside className={`${hidden || ''} ${mobile ? 'md:hidden fixed top-0 left-0 bottom-0 z-50' : ''} w-56 lg:w-60 border-r border-stone-200/70 bg-[#FDFBF7] flex flex-col flex-shrink-0`}>
-      <div className="px-6 py-7 border-b border-stone-200/70 flex justify-between items-center">
+      <div className="px-6 py-5 border-b border-stone-200/70 flex justify-between items-start">
         <div>
-          <div className="display-italic text-2xl tracking-tight" style={{ color: '#6B1F2E' }}>Lumière</div>
-          <div className="text-[10px] tracking-[0.3em] text-stone-500 mt-1 uppercase">Wedding Studio</div>
+          <div className="brand-font text-lg sm:text-xl font-semibold tracking-[0.08em] text-stone-900 leading-none whitespace-nowrap">
+            WeddingQueen
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500 mt-1 font-light">Master Console</div>
         </div>
         {mobile && <button onClick={onClose}><X size={18} className="text-stone-500" /></button>}
       </div>
