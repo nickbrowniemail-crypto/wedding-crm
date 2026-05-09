@@ -1,11 +1,28 @@
+@import url('https://fonts.cdnfonts.com/css/attoma');
+@import url('https://fonts.cdnfonts.com/css/khurasan');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Instrument+Sans:wght@400;500;600&display=swap');
-
 html, body, #root { height: 100%; margin: 0; }
-body { font-family: 'Instrument Sans', system-ui, sans-serif; background: #F8F4ED; }
+body { font-family: 'Khurasan', 'Instrument Sans', system-ui, sans-serif; background: #F8F4ED; }
+
+.brand-font {
+  font-family: 'Attoma', 'Khurasan', 'Instrument Sans', system-ui, sans-serif;
+}
+.luxury-heading {
+  font-family: 'Khurasan', 'Attoma', 'Instrument Sans', system-ui, sans-serif;
+}
+
+/* Hide scrollbars while maintaining scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
 
 .display { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; font-weight: 400; }
 .display-italic { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 400; }
