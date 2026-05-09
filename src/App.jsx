@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useTable } from './dataHooks';
 import { useAuth } from './auth/AuthContext';
+import { canAccess, resolveRole, DEFAULT_VIEW, roleLabel } from './permissions';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import TeamMembersView from './components/TeamMembersView';
@@ -23,7 +24,7 @@ const ALL_NAV_ITEMS = [
   { id: 'support',      label: 'Support Tickets',  icon: LifeBuoy },
   { id: 'deliverables', label: 'Deliverables',     icon: Package },
   { id: 'accounting',   label: 'Accounting',       icon: Wallet },
-  { id: 'team',         label: 'Team Members',     icon: UserCog, adminOnly: true },
+  { id: 'team',         label: 'Team Members',     icon: UserCog },
 ];
 
 export default function App() {
@@ -55,13 +56,14 @@ function CRM({ user, profile, session, logout }) {
   const [selectedVendorId, setSelectedVendorId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isAdmin = profile?.role === 'admin';
+  const role = resolveRole(profile?.role);
 
-  // Filter nav items based on role
-  const navItems = ALL_NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  // Only show nav items this role can access
+  const navItems = ALL_NAV_ITEMS.filter(item => canAccess(role, item.id));
 
-  // Guard: non-admins can't stay on team page
-  const safeView = view === 'team' && !isAdmin ? 'dashboard' : view;
+  // Guard: redirect to role's default view if current view is forbidden
+  const defaultView = DEFAULT_VIEW[role] ?? 'tasks';
+  const safeView    = canAccess(role, view) ? view : defaultView;
 
   const clients      = useTable('clients',       { orderBy: 'created_at',   ascending: false });
   const events       = useTable('events',        { orderBy: 'event_date',   ascending: true });
@@ -149,7 +151,7 @@ function CRM({ user, profile, session, logout }) {
         {safeView === 'support'      && <SupportTicketsView data={data} openClient={openClient} />}
         {safeView === 'deliverables' && <DeliverablesView data={data} openClient={openClient} />}
         {safeView === 'accounting'   && <AccountingView data={data} openClient={openClient} openVendor={openVendor} />}
-        {safeView === 'team'         && isAdmin && <TeamMembersView />}
+        {safeView === 'team'         && canAccess(role, 'team') && <TeamMembersView />}
       </main>
     </div>
   );
@@ -223,7 +225,7 @@ function Header({ view, clients, vendors, selectedClientId, selectedVendorId, on
           <div className="hidden lg:block">
             <div className="text-xs text-stone-700 font-medium leading-none truncate max-w-[140px]">{displayName}</div>
             {profile?.role && (
-              <div className="text-[10px] text-stone-400 capitalize mt-0.5">{profile.role}</div>
+              <div className="text-[10px] text-stone-400 mt-0.5">{roleLabel(profile.role)}</div>
             )}
           </div>
         </div>

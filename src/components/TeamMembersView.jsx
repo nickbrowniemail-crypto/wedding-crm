@@ -3,20 +3,24 @@ import { UserPlus, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useTeamMembers } from '../hooks/useTeamMembers';
 import { useAuth } from '../auth/AuthContext';
 import { Modal, Field, PrimaryButton, SecondaryButton, Loader, EmptyState } from './UI';
+import { ROLES, roleLabel, canAccess } from '../permissions';
 import { fmtDate } from '../utils';
 
-const ROLES = ['admin', 'manager', 'staff'];
-
 const ROLE_STYLES = {
-  admin:   'bg-[#6B1F2E]/10 text-[#6B1F2E] border border-[#6B1F2E]/25',
-  manager: 'bg-blue-50 text-blue-700 border border-blue-200',
-  staff:   'bg-stone-100 text-stone-600 border border-stone-200',
+  admin:                  'bg-[#6B1F2E]/10 text-[#6B1F2E] border border-[#6B1F2E]/25',
+  project_manager:        'bg-blue-50 text-blue-700 border border-blue-200',
+  relationship_manager:   'bg-violet-50 text-violet-700 border border-violet-200',
+  production_coordinator: 'bg-amber-50 text-amber-700 border border-amber-200',
+  editor:                 'bg-stone-100 text-stone-600 border border-stone-200',
+  // legacy slugs — shown gracefully until reassigned
+  manager:                'bg-blue-50 text-blue-700 border border-blue-200',
+  staff:                  'bg-stone-100 text-stone-600 border border-stone-200',
 };
 
 function RoleBadge({ role }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium capitalize ${ROLE_STYLES[role] ?? ROLE_STYLES.staff}`}>
-      {role ?? 'staff'}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ROLE_STYLES[role] ?? ROLE_STYLES.editor}`}>
+      {roleLabel(role)}
     </span>
   );
 }
@@ -46,7 +50,7 @@ function Avatar({ name }) {
 // ── Add Member Modal ──────────────────────────────────────────────────────────
 
 function AddMemberModal({ open, onClose, onAdd }) {
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'staff' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'editor' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -58,7 +62,7 @@ function AddMemberModal({ open, onClose, onAdd }) {
     setLoading(true);
     try {
       await onAdd(form);
-      setForm({ full_name: '', email: '', password: '', role: 'staff' });
+      setForm({ full_name: '', email: '', password: '', role: 'editor' });
       onClose();
     } catch (err) {
       setError(err.message ?? 'Failed to create member');
@@ -94,7 +98,7 @@ function AddMemberModal({ open, onClose, onAdd }) {
 // ── Edit Role Modal ───────────────────────────────────────────────────────────
 
 function EditRoleModal({ member, open, onClose, onSave }) {
-  const [role, setRole] = useState(member?.role ?? 'staff');
+  const [role, setRole] = useState(member?.role ?? 'editor');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -136,7 +140,7 @@ export default function TeamMembersView() {
   const [actionLoading, setActionLoading] = useState(null); // member id being mutated
 
   // Guard: only admins should reach this view
-  if (currentProfile?.role !== 'admin') {
+  if (!canAccess(currentProfile?.role, 'team')) {
     return (
       <div className="p-10">
         <EmptyState

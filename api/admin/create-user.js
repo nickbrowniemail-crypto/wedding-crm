@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const VALID_ROLES = ['admin', 'manager', 'staff'];
+const VALID_ROLES = ['admin', 'project_manager', 'relationship_manager', 'production_coordinator', 'editor'];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
