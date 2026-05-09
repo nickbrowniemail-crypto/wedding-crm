@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, Field, PrimaryButton, SecondaryButton, DangerButton } from './UI';
+import { AssigneeSelect } from './AssigneeSelect';
 import { insertRow, updateRow, deleteRow } from '../dataHooks';
 import {
   CLIENT_STATUSES, PACKAGES, VENDOR_TYPES, EVENT_TYPES,
@@ -454,18 +455,26 @@ export function VendorPaymentForm({ open, onClose, onSaved, projectVendorId, pro
 }
 
 // ============ TASK FORM ============
-export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClientId }) {
+export function TaskForm({ open, onClose, onSaved, clients, members = [], vendors = [], initial, defaultClientId }) {
   const [f, setF] = useState({
-    client_id: defaultClientId || '', title: '', description: '', assigned_to: '',
+    client_id: defaultClientId || '', title: '', description: '',
+    assigned_to: '', assignee_id: '', assignee_type: '',
     due_date: '', status: 'pending', priority: 'medium', is_deliverable: false, is_client_issue: false
   });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
-    if (initial) setF({ ...initial, client_id: initial.client_id || '' });
+    if (initial) setF({
+      ...initial,
+      client_id:     initial.client_id    || '',
+      assignee_id:   initial.assignee_id  || '',
+      assignee_type: initial.assignee_type || '',
+      assigned_to:   initial.assigned_to  || '',
+    });
     else setF({
-      client_id: defaultClientId || '', title: '', description: '', assigned_to: '',
+      client_id: defaultClientId || '', title: '', description: '',
+      assigned_to: '', assignee_id: '', assignee_type: '',
       due_date: '', status: 'pending', priority: 'medium', is_deliverable: false, is_client_issue: false
     });
   }, [initial, open, defaultClientId]);
@@ -478,8 +487,10 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
     try {
       const payload = {
         ...f,
-        client_id: f.client_id ? Number(f.client_id) : null,
-        due_date: f.due_date || null
+        client_id:     f.client_id     ? Number(f.client_id) : null,
+        due_date:      f.due_date      || null,
+        assignee_id:   f.assignee_id   || null,
+        assignee_type: f.assignee_type || null,
       };
       if (isEdit) await updateRow('tasks', initial.id, payload);
       else await insertRow('tasks', payload);
@@ -500,7 +511,13 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
         <Field label="Project (optional)" type="select" value={f.client_id} onChange={(v) => u('client_id', v)}
           options={[{ value: '', label: '— Internal / No project —' }, ...clients.map(c => ({ value: c.id, label: `${c.bride_name} & ${c.groom_name}` }))]} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Assigned To" required value={f.assigned_to} onChange={(v) => u('assigned_to', v)} placeholder="Sneha / Riya" />
+          <AssigneeSelect
+            label="Assigned To" required
+            members={members} vendors={vendors}
+            value={{ assignee_id: f.assignee_id, assignee_type: f.assignee_type, assigned_to: f.assigned_to }}
+            onChange={({ assignee_id, assignee_type, assigned_to }) =>
+              setF(p => ({ ...p, assignee_id, assignee_type, assigned_to }))}
+          />
           <Field label="Due Date" type="date" value={f.due_date} onChange={(v) => u('due_date', v)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -530,18 +547,26 @@ export function TaskForm({ open, onClose, onSaved, clients, initial, defaultClie
 }
 
 // ============ DELIVERABLE FORM ============
-export function DeliverableForm({ open, onClose, onSaved, clients, vendors, initial, defaultClientId }) {
+export function DeliverableForm({ open, onClose, onSaved, clients, vendors, members = [], initial, defaultClientId }) {
   const [f, setF] = useState({
     client_id: defaultClientId || '', item: '', due_date: '', vendor_id: '',
+    assigned_to: '', assignee_id: '', assignee_type: '',
     status: 'pending', priority: 'medium', delivered_date: '', notes: ''
   });
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
-    if (initial) setF({ ...initial, vendor_id: initial.vendor_id || '' });
+    if (initial) setF({
+      ...initial,
+      vendor_id:     initial.vendor_id    || '',
+      assigned_to:   initial.assigned_to  || '',
+      assignee_id:   initial.assignee_id  || '',
+      assignee_type: initial.assignee_type || '',
+    });
     else setF({
       client_id: defaultClientId || '', item: '', due_date: '', vendor_id: '',
+      assigned_to: '', assignee_id: '', assignee_type: '',
       status: 'pending', priority: 'medium', delivered_date: '', notes: ''
     });
   }, [initial, open, defaultClientId]);
@@ -554,10 +579,13 @@ export function DeliverableForm({ open, onClose, onSaved, clients, vendors, init
     try {
       const payload = {
         ...f,
-        client_id: Number(f.client_id),
-        vendor_id: f.vendor_id ? Number(f.vendor_id) : null,
-        due_date: f.due_date || null,
-        delivered_date: f.delivered_date || null
+        client_id:     Number(f.client_id),
+        vendor_id:     f.vendor_id     ? Number(f.vendor_id) : null,
+        due_date:      f.due_date      || null,
+        delivered_date: f.delivered_date || null,
+        assignee_id:   f.assignee_id   || null,
+        assignee_type: f.assignee_type || null,
+        assigned_to:   f.assigned_to   || null,
       };
       if (isEdit) await updateRow('deliverables', initial.id, payload);
       else await insertRow('deliverables', payload);
@@ -577,6 +605,12 @@ export function DeliverableForm({ open, onClose, onSaved, clients, vendors, init
         <Field label="Item" required value={f.item} onChange={(v) => u('item', v)} placeholder="Edited photos (500), Album, Cinematic video…" />
         <Field label="Project" type="select" required value={f.client_id} onChange={(v) => u('client_id', v)}
           options={clients.map(c => ({ value: c.id, label: `${c.bride_name} & ${c.groom_name}` }))} />
+        <AssigneeSelect
+          members={members} vendors={vendors}
+          value={{ assignee_id: f.assignee_id, assignee_type: f.assignee_type, assigned_to: f.assigned_to }}
+          onChange={({ assignee_id, assignee_type, assigned_to }) =>
+            setF(p => ({ ...p, assignee_id, assignee_type, assigned_to }))}
+        />
         <Field label="Vendor (optional)" type="select" value={f.vendor_id} onChange={(v) => u('vendor_id', v)}
           options={[{ value: '', label: '— None —' }, ...vendors.map(v => ({ value: v.id, label: v.name }))]} />
         <div className="grid grid-cols-2 gap-3">

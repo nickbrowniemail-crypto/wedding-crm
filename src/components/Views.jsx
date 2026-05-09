@@ -13,6 +13,7 @@ import {
   ClientForm, EventForm, VendorForm, ProjectVendorForm,
   PaymentForm, VendorPaymentForm, TaskForm, DeliverableForm, ExpenseForm
 } from './Forms';
+import { AssigneeCell } from './AssigneeSelect';
 
 // ============ DASHBOARD ============
 export function DashboardView({ data, openClient, openVendor }) {
@@ -492,7 +493,7 @@ export function ClientsView({ data, openClient }) {
 
 // ============ CLIENT DETAIL ============
 export function ClientDetailView({ data, clientId, openVendor }) {
-  const { clients, events, payments, projectVendors, vendorPayments, vendors, tasks, deliverables, refresh } = data;
+  const { clients, events, payments, projectVendors, vendorPayments, vendors, tasks, deliverables, members, refresh } = data;
   const [tab, setTab] = useState('overview');
   const [editClient, setEditClient] = useState(false);
   const [eventForm, setEventForm] = useState({ open: false, initial: null });
@@ -892,8 +893,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
                             {t.is_deliverable && <Package size={12} className="text-[#6B1F2E]" />}
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
-                          {t.assigned_to || '—'}
+                        <td className="px-4 py-4 text-sm text-stone-900">
+                          <AssigneeCell row={t} members={members} vendors={vendors} />
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
@@ -952,8 +953,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
                           <td className="px-4 py-4 text-sm text-stone-900">
                             {d.item}
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-900">
-                            {d.assigned_to || '—'}
+                          <td className="px-4 py-4 text-sm text-stone-900">
+                            <AssigneeCell row={d} members={members} vendors={vendors} />
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status)}`}>
@@ -985,8 +986,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
       <ProjectVendorForm open={pvForm.open} onClose={() => setPvForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} vendors={vendors} initial={pvForm.initial} />
       <PaymentForm open={paymentForm.open} onClose={() => setPaymentForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} initial={paymentForm.initial} />
       <VendorPaymentForm open={vpForm.open} onClose={() => setVpForm({ open: false, projectVendorId: null, initial: null })} onSaved={refreshAll} projectVendorId={vpForm.projectVendorId} initial={vpForm.initial} />
-      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} defaultClientId={clientId} initial={taskForm.initial} />
-      <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} vendors={vendors} defaultClientId={clientId} initial={delForm.initial} />
+      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} members={members} vendors={vendors} defaultClientId={clientId} initial={taskForm.initial} />
+      <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} vendors={vendors} members={members} defaultClientId={clientId} initial={delForm.initial} />
     </div>
   );
 }
@@ -1179,7 +1180,7 @@ export function VendorDetailView({ data, vendorId, openClient }) {
 
 // ============ TASKS ============
 export function TasksView({ data, openClient }) {
-  const { tasks, clients, refresh } = data;
+  const { tasks, clients, vendors, members, refresh } = data;
   const [filter, setFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
@@ -1296,7 +1297,9 @@ export function TasksView({ data, openClient }) {
                           </button>
                         ) : <span className="px-2 py-1 bg-stone-100 rounded text-stone-600 text-xs uppercase tracking-wider">Internal</span>}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={t.assigned_to}>{t.assigned_to}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[130px]">
+                        <AssigneeCell row={t} members={members} vendors={vendors} />
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
                           {t.status.replace('_', ' ')}
@@ -1320,14 +1323,14 @@ export function TasksView({ data, openClient }) {
         </div>
       )}
 
-      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} initial={taskForm.initial} />
+      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} members={members} vendors={vendors} initial={taskForm.initial} />
     </div>
   );
 }
 
 // ============ DELIVERABLES ============
 export function DeliverablesView({ data, openClient }) {
-  const { deliverables, tasks, clients, vendors, refresh } = data;
+  const { deliverables, tasks, clients, vendors, members, refresh } = data;
   const [filter, setFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
@@ -1432,7 +1435,9 @@ export function DeliverablesView({ data, openClient }) {
                           </button>
                         ) : '—'}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={d.assigned_to}>{d.assigned_to || '—'}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[130px]">
+                        <AssigneeCell row={d} members={members} vendors={vendors} />
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status)}`}>
                           {d.status.replace('_', ' ')}
@@ -1456,7 +1461,7 @@ export function DeliverablesView({ data, openClient }) {
         </div>
       )}
 
-      <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} vendors={vendors} initial={delForm.initial} />
+      <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} vendors={vendors} members={members} initial={delForm.initial} />
     </div>
   );
 }
@@ -1616,7 +1621,7 @@ export function AccountingView({ data, openClient, openVendor }) {
 
 // ============ SUPPORT TICKETS ============
 export function SupportTicketsView({ data, openClient }) {
-  const { tasks, clients, refresh } = data;
+  const { tasks, clients, vendors, members, refresh } = data;
   const [filter, setFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -1744,7 +1749,9 @@ export function SupportTicketsView({ data, openClient }) {
                           </button>
                         ) : <span className="px-2 py-1 bg-stone-100 rounded text-stone-600 text-xs uppercase tracking-wider">Internal</span>}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-sm text-stone-900 max-w-[130px] truncate" title={t.assigned_to}>{t.assigned_to}</td>
+                      <td className="px-3 py-2.5 text-sm text-stone-900 max-w-[130px]">
+                        <AssigneeCell row={t} members={members} vendors={vendors} />
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
                           {t.status.replace('_', ' ')}
@@ -1768,7 +1775,7 @@ export function SupportTicketsView({ data, openClient }) {
         </div>
       )}
 
-      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} initial={taskForm.initial} />
+      <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} members={members} vendors={vendors} initial={taskForm.initial} />
     </div>
   );
 }

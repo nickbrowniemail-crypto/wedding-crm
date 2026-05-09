@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, Users, Wallet, Briefcase, CheckSquare, Package,
-  Menu, ChevronLeft, Calendar, LifeBuoy, LogOut, UserCog
+  Menu, ChevronLeft, Calendar, LifeBuoy, LogOut, UserCog, ClipboardList, LayoutGrid
 } from 'lucide-react';
 import { useTable } from './dataHooks';
 import { useAuth } from './auth/AuthContext';
@@ -9,6 +9,7 @@ import { canAccess, resolveRole, DEFAULT_VIEW, roleLabel } from './permissions';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import TeamMembersView from './components/TeamMembersView';
+import { MyWorkOverview, MyWorkTasksView, MyWorkDeliverablesView } from './pages/MyWorkView';
 import {
   DashboardView, ScheduleView, ClientsView, ClientDetailView,
   VendorsView, VendorDetailView, TasksView, DeliverablesView, AccountingView,
@@ -16,15 +17,18 @@ import {
 } from './components/Views';
 
 const ALL_NAV_ITEMS = [
-  { id: 'dashboard',    label: 'Dashboard',       icon: LayoutDashboard },
-  { id: 'schedule',     label: 'Schedule',         icon: Calendar },
-  { id: 'clients',      label: 'Clients',          icon: Users },
-  { id: 'vendors',      label: 'Vendors',          icon: Briefcase },
-  { id: 'tasks',        label: 'Tasks',            icon: CheckSquare },
-  { id: 'support',      label: 'Support Tickets',  icon: LifeBuoy },
-  { id: 'deliverables', label: 'Deliverables',     icon: Package },
-  { id: 'accounting',   label: 'Accounting',       icon: Wallet },
-  { id: 'team',         label: 'Team Members',     icon: UserCog },
+  { id: 'dashboard',            label: 'Dashboard',         icon: LayoutDashboard },
+  { id: 'mywork',               label: 'My Work Overview',  icon: LayoutGrid },
+  { id: 'myworkTasks',          label: 'My Tasks',          icon: CheckSquare },
+  { id: 'myworkDeliverables',   label: 'My Deliverables',   icon: Package },
+  { id: 'schedule',             label: 'Schedule',          icon: Calendar },
+  { id: 'clients',              label: 'Clients',           icon: Users },
+  { id: 'vendors',              label: 'Vendors',           icon: Briefcase },
+  { id: 'tasks',                label: 'Tasks',             icon: CheckSquare },
+  { id: 'support',              label: 'Support Tickets',   icon: LifeBuoy },
+  { id: 'deliverables',         label: 'Deliverables',      icon: Package },
+  { id: 'accounting',           label: 'Accounting',        icon: Wallet },
+  { id: 'team',                 label: 'Team Members',      icon: UserCog },
 ];
 
 export default function App() {
@@ -65,6 +69,7 @@ function CRM({ user, profile, session, logout }) {
   const defaultView = DEFAULT_VIEW[role] ?? 'tasks';
   const safeView    = canAccess(role, view) ? view : defaultView;
 
+  const members      = useTable('profiles',      { orderBy: 'full_name',    ascending: true });
   const clients      = useTable('clients',       { orderBy: 'created_at',   ascending: false });
   const events       = useTable('events',        { orderBy: 'event_date',   ascending: true });
   const vendors      = useTable('vendors',       { orderBy: 'name',         ascending: true });
@@ -77,12 +82,13 @@ function CRM({ user, profile, session, logout }) {
   const activity     = useTable('activity_log',  { orderBy: 'created_at',   ascending: false });
 
   const refreshAll = () => {
-    clients.refresh(); events.refresh(); vendors.refresh(); projectVendors.refresh();
+    members.refresh(); clients.refresh(); events.refresh(); vendors.refresh(); projectVendors.refresh();
     payments.refresh(); vendorPayments.refresh(); expenses.refresh();
     tasks.refresh(); deliverables.refresh(); activity.refresh();
   };
 
   const data = {
+    members:        members.rows,
     clients:        clients.rows,
     events:         events.rows,
     vendors:        vendors.rows,
@@ -96,6 +102,7 @@ function CRM({ user, profile, session, logout }) {
     loading:        clients.loading || vendors.loading,
     refresh: {
       all:            refreshAll,
+      members:        members.refresh,
       clients:        clients.refresh,
       events:         events.refresh,
       vendors:        vendors.refresh,
@@ -141,17 +148,20 @@ function CRM({ user, profile, session, logout }) {
           user={user} profile={profile} onLogout={logout}
         />
 
-        {safeView === 'dashboard'    && <DashboardView data={data} openClient={openClient} openVendor={openVendor} />}
-        {safeView === 'clients'      && <ClientsView data={data} openClient={openClient} />}
-        {safeView === 'schedule'     && <ScheduleView data={data} openClient={openClient} />}
-        {safeView === 'clientDetail' && <ClientDetailView data={data} clientId={selectedClientId} openVendor={openVendor} />}
-        {safeView === 'vendors'      && <VendorsView data={data} openVendor={openVendor} />}
-        {safeView === 'vendorDetail' && <VendorDetailView data={data} vendorId={selectedVendorId} openClient={openClient} />}
-        {safeView === 'tasks'        && <TasksView data={data} openClient={openClient} />}
-        {safeView === 'support'      && <SupportTicketsView data={data} openClient={openClient} />}
-        {safeView === 'deliverables' && <DeliverablesView data={data} openClient={openClient} />}
-        {safeView === 'accounting'   && <AccountingView data={data} openClient={openClient} openVendor={openVendor} />}
-        {safeView === 'team'         && canAccess(role, 'team') && <TeamMembersView />}
+        {safeView === 'dashboard'          && <DashboardView data={data} openClient={openClient} openVendor={openVendor} />}
+        {safeView === 'mywork'             && <MyWorkOverview data={data} profile={profile} />}
+        {safeView === 'myworkTasks'        && <MyWorkTasksView data={data} profile={profile} />}
+        {safeView === 'myworkDeliverables' && <MyWorkDeliverablesView data={data} profile={profile} />}
+        {safeView === 'clients'            && <ClientsView data={data} openClient={openClient} />}
+        {safeView === 'schedule'           && <ScheduleView data={data} openClient={openClient} />}
+        {safeView === 'clientDetail'       && <ClientDetailView data={data} clientId={selectedClientId} openVendor={openVendor} />}
+        {safeView === 'vendors'            && <VendorsView data={data} openVendor={openVendor} />}
+        {safeView === 'vendorDetail'       && <VendorDetailView data={data} vendorId={selectedVendorId} openClient={openClient} />}
+        {safeView === 'tasks'              && <TasksView data={data} openClient={openClient} />}
+        {safeView === 'support'            && <SupportTicketsView data={data} openClient={openClient} />}
+        {safeView === 'deliverables'       && <DeliverablesView data={data} openClient={openClient} />}
+        {safeView === 'accounting'         && <AccountingView data={data} openClient={openClient} openVendor={openVendor} />}
+        {safeView === 'team'               && canAccess(role, 'team') && <TeamMembersView />}
       </main>
     </div>
   );
@@ -159,7 +169,10 @@ function CRM({ user, profile, session, logout }) {
 
 function Header({ view, clients, vendors, selectedClientId, selectedVendorId, onMenuClick, onBack, user, profile, onLogout }) {
   let eyebrow = '', title = '';
-  if (view === 'dashboard')    { eyebrow = 'Overview';         title = 'Good morning, Studio'; }
+  if (view === 'dashboard')          { eyebrow = 'Overview';         title = 'Good morning, Studio'; }
+  else if (view === 'mywork')             { eyebrow = 'My Work';          title = 'Overview'; }
+  else if (view === 'myworkTasks')        { eyebrow = 'My Work';          title = 'My Tasks'; }
+  else if (view === 'myworkDeliverables') { eyebrow = 'My Work';          title = 'My Deliverables'; }
   else if (view === 'clients')       { eyebrow = 'Couples & Projects'; title = 'All Clients'; }
   else if (view === 'clientDetail')  {
     const c = clients.find(x => x.id === selectedClientId);

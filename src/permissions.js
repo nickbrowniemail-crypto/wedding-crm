@@ -14,14 +14,17 @@ const LEGACY_MAP = {
   staff:   'production_coordinator',
 };
 
+// My Work views — available to every role (personal workspace)
+const MY_WORK = ['mywork', 'myworkTasks', 'myworkDeliverables'];
+
 // Views each role is permitted to access
 // clientDetail / vendorDetail inherit from 'clients' / 'vendors' (see canAccess)
 const ALLOWED_VIEWS = {
-  admin:                  ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting','team'],
-  project_manager:        ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting'],
-  relationship_manager:   ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting'],
-  production_coordinator: ['dashboard','schedule','clients','vendors','tasks','support','deliverables'],
-  editor:                 ['tasks','deliverables'],
+  admin:                  ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting','team', ...MY_WORK],
+  project_manager:        ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting', ...MY_WORK],
+  relationship_manager:   ['dashboard','schedule','clients','vendors','tasks','support','deliverables','accounting', ...MY_WORK],
+  production_coordinator: ['dashboard','schedule','clients','vendors','tasks','support','deliverables', ...MY_WORK],
+  editor:                 [...MY_WORK],
 };
 
 // First view to land on after login per role
@@ -30,7 +33,7 @@ export const DEFAULT_VIEW = {
   project_manager:        'dashboard',
   relationship_manager:   'dashboard',
   production_coordinator: 'dashboard',
-  editor:                 'tasks',
+  editor:                 'mywork',
 };
 
 // Resolve any stored slug (including legacy) to a canonical role
