@@ -14,6 +14,8 @@ import {
   PaymentForm, VendorPaymentForm, TaskForm, DeliverableForm, ExpenseForm
 } from './Forms';
 import { AssigneeCell } from './AssigneeSelect';
+import WorkflowTasksModal from './WorkflowTasksModal';
+import WorkflowDeliverablesModal from './WorkflowDeliverablesModal';
 
 // ============ DASHBOARD ============
 export function DashboardView({ data, openClient, openVendor }) {
@@ -502,6 +504,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
   const [vpForm, setVpForm] = useState({ open: false, projectVendorId: null, initial: null });
   const [taskForm, setTaskForm] = useState({ open: false, initial: null });
   const [delForm, setDelForm] = useState({ open: false, initial: null });
+  const [workflowModal, setWorkflowModal] = useState(false);
+  const [workflowDelModal, setWorkflowDelModal] = useState(false);
 
   const c = clients.find(x => x.id === clientId);
   if (!c) return <div className="p-10 text-stone-500">Client not found</div>;
@@ -801,6 +805,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
               </div>
             </div>
           )}
+
+          <PaymentCalculator bookingAmount={Number(c.total_amount || 0)} received={received} />
         </div>
       )}
 
@@ -862,7 +868,10 @@ export function ClientDetailView({ data, clientId, openVendor }) {
 
       {tab === 'tasks' && (
         <div>
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-end gap-2 mb-3">
+            <button onClick={() => setWorkflowModal(true)} className="flex items-center gap-2 bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 px-3 py-2 rounded-md text-xs transition-colors">
+              <Plus size={12} />Add Workflow Tasks
+            </button>
             <button onClick={() => setTaskForm({ open: true, initial: null })} className="flex items-center gap-2 bg-stone-900 text-white px-3 py-2 rounded-md text-xs">
               <Plus size={12} />Add Task
             </button>
@@ -922,7 +931,10 @@ export function ClientDetailView({ data, clientId, openVendor }) {
 
       {tab === 'deliverables' && (
         <div>
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-end gap-2 mb-3">
+            <button onClick={() => setWorkflowDelModal(true)} className="flex items-center gap-2 bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 px-3 py-2 rounded-md text-xs transition-colors">
+              <Plus size={12} />Add Workflow Deliverables
+            </button>
             <button onClick={() => setDelForm({ open: true, initial: null })} className="flex items-center gap-2 bg-stone-900 text-white px-3 py-2 rounded-md text-xs">
               <Plus size={12} />Add Deliverable
             </button>
@@ -988,6 +1000,8 @@ export function ClientDetailView({ data, clientId, openVendor }) {
       <VendorPaymentForm open={vpForm.open} onClose={() => setVpForm({ open: false, projectVendorId: null, initial: null })} onSaved={refreshAll} projectVendorId={vpForm.projectVendorId} initial={vpForm.initial} />
       <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} members={members} vendors={vendors} defaultClientId={clientId} initial={taskForm.initial} />
       <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} vendors={vendors} members={members} defaultClientId={clientId} initial={delForm.initial} />
+      <WorkflowTasksModal open={workflowModal} onClose={() => setWorkflowModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} />
+      <WorkflowDeliverablesModal open={workflowDelModal} onClose={() => setWorkflowDelModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} />
     </div>
   );
 }
@@ -1776,6 +1790,152 @@ export function SupportTicketsView({ data, openClient }) {
       )}
 
       <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refresh.all} clients={clients} members={members} vendors={vendors} initial={taskForm.initial} />
+    </div>
+  );
+}
+
+// ============ PAYMENT CALCULATOR ============
+function PaymentCalculator({ bookingAmount, received }) {
+  const [holdPct, setHoldPct] = useState(10);
+  const [copied, setCopied] = useState(false);
+
+  const pending    = bookingAmount - received;
+  const holdAmount = Math.round(bookingAmount * holdPct / 100);
+  const payNow     = Math.max(0, pending - holdAmount);
+
+  const plainMessage = [
+    'Hey,',
+    '',
+    'It was truly a pleasure for our team to capture your special moments. We hope you cherish every moment of this beautiful new journey.',
+    '',
+    'As per the quotation, we kindly request you to clear the remaining amount so we can proceed further with your project.',
+    '',
+    'Please find the payment details below for your reference:',
+    '',
+    `Booking Amount - ${fmtINR(bookingAmount)}`,
+    `Total Received Amount - ${fmtINR(received)}`,
+    '',
+    `Amount To Be Pay Now - ${fmtINR(payNow)}`,
+    '',
+    `After Album Designing Approval - ${fmtINR(holdAmount)}`,
+    '',
+    'If you have any questions, please contact me.',
+    '',
+    'I will share the timeline of the deliverables within 3 days after the payment is done.',
+  ].join('\n');
+
+  function copy() {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(plainMessage).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = plainMessage;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
+
+  const breakdown = [
+    { label: 'Booking Amount',     value: fmtINR(bookingAmount), cls: 'text-stone-900' },
+    { label: 'Total Received',     value: fmtINR(received),      cls: 'text-emerald-700' },
+    { label: `Hold (${holdPct}%)`, value: fmtINR(holdAmount),    cls: 'text-stone-500', note: 'After album approval' },
+    { label: 'Pay Now',            value: fmtINR(payNow),        cls: 'text-[#6B1F2E]', highlight: true },
+  ];
+
+  return (
+    <div className="mt-8">
+
+      {/* Section separator */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="h-px flex-1 bg-stone-200" />
+        <span className="text-[10px] uppercase tracking-[0.4em] text-stone-400 font-medium flex-shrink-0">Payment Calculator</span>
+        <div className="h-px flex-1 bg-stone-200" />
+      </div>
+
+      {/* Elevated card */}
+      <div className="bg-white rounded-xl border border-stone-200/80 shadow-sm overflow-hidden">
+
+        {/* Card header */}
+        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.4em] text-stone-400 mb-1">Billing Summary</div>
+            <h3 className="display text-xl text-stone-900 leading-none">Payment Calculator</h3>
+          </div>
+          <div className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-lg px-3.5 py-2.5">
+            <label className="text-[10px] uppercase tracking-[0.2em] text-stone-500 whitespace-nowrap">Hold %</label>
+            <input
+              type="number" min="0" max="100" step="1"
+              value={holdPct}
+              onChange={e => setHoldPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+              className="w-12 bg-transparent text-sm font-semibold text-stone-900 text-center focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Breakdown row */}
+        <div className="px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-stone-100">
+          {breakdown.map(b => (
+            b.highlight ? (
+              /* Pay Now — elevated emphasis */
+              <div key={b.label} className="rounded-xl bg-[#6B1F2E] p-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-white/70 mb-3">{b.label}</div>
+                <div className="display text-2xl font-bold text-white leading-none">{b.value}</div>
+                <div className="text-[10px] text-white/50 mt-2">Due now</div>
+              </div>
+            ) : (
+              /* Supporting cards */
+              <div key={b.label} className="rounded-xl bg-stone-50 border border-stone-100 p-4">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-stone-400 mb-3 leading-tight">{b.label}</div>
+                <div className={`display text-lg font-semibold ${b.cls} leading-none`}>{b.value}</div>
+                {b.note && <div className="text-[10px] text-stone-400 mt-2 leading-tight">{b.note}</div>}
+              </div>
+            )
+          ))}
+        </div>
+
+        {/* Message section */}
+        <div className="px-6 py-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.4em] text-stone-400 mb-0.5">WhatsApp / Chat Ready</div>
+              <h4 className="text-sm font-medium text-stone-700">Payment Reminder Message</h4>
+            </div>
+            <button
+              onClick={copy}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200
+                ${copied ? 'bg-emerald-600 text-white shadow-sm' : 'bg-stone-900 text-white hover:bg-stone-700 shadow-sm'}`}
+            >
+              {copied ? '✓ Copied!' : 'Copy Message'}
+            </button>
+          </div>
+
+          <div className="bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 text-[13px] leading-relaxed text-stone-600">
+              {plainMessage.split('\n').map((line, i) => {
+                const isPayNow = line.startsWith('Amount To Be Pay Now');
+                if (line === '') return <div key={i} className="h-3" />;
+                return (
+                  <div key={i} className={
+                    isPayNow
+                      ? 'font-semibold text-[#6B1F2E] bg-[#6B1F2E]/8 -mx-5 px-5 py-1.5 my-1 text-sm'
+                      : 'leading-snug'
+                  }>
+                    {line}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
