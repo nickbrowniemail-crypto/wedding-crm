@@ -10,7 +10,7 @@ import {
 } from '../utils';
 import { StatCard, SmallStat, EmptyState, Loader } from './UI';
 import {
-  ClientForm, EventForm, VendorForm, ProjectVendorForm,
+  ClientForm, EditProjectModal, EventForm, VendorForm, ProjectVendorForm,
   PaymentForm, VendorPaymentForm, TaskForm, DeliverableForm, ExpenseForm
 } from './Forms';
 import { AssigneeCell } from './AssigneeSelect';
@@ -591,7 +591,15 @@ export function ClientDetailView({ data, clientId, openVendor }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Client Details */}
             <div className="bg-white rounded-lg border border-stone-200/70 p-4 sm:p-5">
-              <h3 className="display text-lg text-stone-900 mb-3">Project Info</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="display text-lg text-stone-900">Project Info</h3>
+                <button
+                  onClick={() => setEditClient(true)}
+                  className="text-[10px] uppercase tracking-wider text-stone-500 hover:text-stone-900 px-2.5 py-1.5 rounded-md hover:bg-stone-100 transition-colors"
+                >
+                  Edit Project
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* Left Column */}
                 <div className="space-y-3">
@@ -1019,15 +1027,15 @@ export function ClientDetailView({ data, clientId, openVendor }) {
         </div>
       )}
 
-      <ClientForm open={editClient} onClose={() => setEditClient(false)} onSaved={refreshAll} initial={c} members={members} />
+      <EditProjectModal open={editClient} onClose={() => setEditClient(false)} onSaved={refreshAll} client={c} events={cEvents} members={members} />
       <EventForm open={eventForm.open} onClose={() => setEventForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} initial={eventForm.initial} />
       <ProjectVendorForm open={pvForm.open} onClose={() => setPvForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} vendors={vendors} initial={pvForm.initial} />
       <PaymentForm open={paymentForm.open} onClose={() => setPaymentForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} initial={paymentForm.initial} />
       <VendorPaymentForm open={vpForm.open} onClose={() => setVpForm({ open: false, projectVendorId: null, initial: null })} onSaved={refreshAll} projectVendorId={vpForm.projectVendorId} initial={vpForm.initial} />
       <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} members={members} vendors={vendors} defaultClientId={clientId} initial={taskForm.initial} />
       <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })} onSaved={refreshAll} clients={clients} vendors={vendors} members={members} defaultClientId={clientId} initial={delForm.initial} />
-      <WorkflowTasksModal open={workflowModal} onClose={() => setWorkflowModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} />
-      <WorkflowDeliverablesModal open={workflowDelModal} onClose={() => setWorkflowDelModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} />
+      <WorkflowTasksModal open={workflowModal} onClose={() => setWorkflowModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} client={c} events={cEvents} />
+      <WorkflowDeliverablesModal open={workflowDelModal} onClose={() => setWorkflowDelModal(false)} onSaved={refreshAll} clientId={clientId} members={members} vendors={vendors} client={c} />
     </div>
   );
 }

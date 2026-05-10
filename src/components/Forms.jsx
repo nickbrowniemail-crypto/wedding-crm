@@ -229,6 +229,181 @@ export function ClientForm({ open, onClose, onSaved, initial, members = [] }) {
   );
 }
 
+// ============ EDIT PROJECT MODAL ============
+export function EditProjectModal({ open, onClose, onSaved, client, events = [], members = [] }) {
+  const [f, setF] = useState({
+    bride_name: '', groom_name: '', phone: '', email: '', city: '',
+    status: 'Lead', total_amount: '', package: 'Gold', booking_date: '', notes: '',
+    project_manager_id: '', relationship_manager_id: '',
+  });
+  const [weddingDate, setWeddingDate]       = useState('');
+  const [engagementDate, setEngagementDate] = useState('');
+  const [preweddingDate, setPreweddingDate] = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (!open || !client) return;
+    setF({
+      bride_name:              client.bride_name              || '',
+      groom_name:              client.groom_name              || '',
+      phone:                   client.phone                   || '',
+      email:                   client.email                   || '',
+      city:                    client.city                    || '',
+      status:                  client.status                  || 'Lead',
+      total_amount:            client.total_amount            || '',
+      package:                 client.package                 || 'Gold',
+      booking_date:            client.booking_date            ? client.booking_date.slice(0, 10) : '',
+      notes:                   client.notes                   || '',
+      project_manager_id:      client.project_manager_id      || '',
+      relationship_manager_id: client.relationship_manager_id || '',
+    });
+    setWeddingDate(  events.find(e => e.event_type === 'Wedding')?.event_date     || '');
+    setEngagementDate(events.find(e => e.event_type === 'Engagement')?.event_date || '');
+    setPreweddingDate(events.find(e => e.event_type === 'Pre-wedding')?.event_date || '');
+    setConfirmDelete(false);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!open || !client) return null;
+
+  const u = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const valid = f.bride_name.trim() && f.groom_name.trim();
+
+  async function handleEventDate(type, newDate) {
+    const existing = events.find(e => e.event_type === type);
+    if (newDate && existing) {
+      await updateRow('events', existing.id, { ...existing, event_date: newDate });
+    } else if (newDate && !existing) {
+      await insertRow('events', { client_id: client.id, event_type: type, event_date: newDate });
+    } else if (!newDate && existing) {
+      await deleteRow('events', existing.id);
+    }
+  }
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updateRow('clients', client.id, {
+        bride_name:              f.bride_name.trim(),
+        groom_name:              f.groom_name.trim(),
+        phone:                   f.phone                   || null,
+        email:                   f.email                   || null,
+        city:                    f.city                    || null,
+        status:                  f.status,
+        total_amount:            Number(f.total_amount)    || 0,
+        package:                 f.package,
+        booking_date:            f.booking_date            || null,
+        notes:                   f.notes                   || null,
+        project_manager_id:      f.project_manager_id      || null,
+        relationship_manager_id: f.relationship_manager_id || null,
+      });
+      await handleEventDate('Wedding',    weddingDate);
+      await handleEventDate('Engagement', engagementDate);
+      await handleEventDate('Pre-wedding', preweddingDate);
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      alert(e.message);
+    }
+    setSaving(false);
+  };
+
+  const remove = async () => {
+    setSaving(true);
+    try {
+      await deleteRow('clients', client.id);
+      onSaved?.();
+      onClose();
+    } catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} eyebrow="Edit Project" title={`${client.bride_name} & ${client.groom_name}`}>
+      <div className="space-y-5">
+
+        {/* Couple & Contact */}
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Couple & Contact</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Bride" required value={f.bride_name} onChange={v => u('bride_name', v)} placeholder="Aanya" />
+            <Field label="Groom" required value={f.groom_name} onChange={v => u('groom_name', v)} placeholder="Arjun" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone" value={f.phone} onChange={v => u('phone', v)} placeholder="+91…" />
+            <Field label="City" value={f.city} onChange={v => u('city', v)} placeholder="Udaipur" />
+          </div>
+          <Field label="Email" value={f.email} onChange={v => u('email', v)} placeholder="couple@email.com" />
+        </div>
+
+        {/* Project Details */}
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Project Details</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Status" type="select" value={f.status} onChange={v => u('status', v)}
+              options={CLIENT_STATUSES.map(s => ({ value: s, label: s }))} />
+            <Field label="Package" type="select" value={f.package} onChange={v => u('package', v)}
+              options={PACKAGES.map(p => ({ value: p, label: p }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Total Deal (₹)" type="number" value={f.total_amount} onChange={v => u('total_amount', v)} placeholder="100000" />
+            <Field label="Booking Date" type="date" value={f.booking_date} onChange={v => u('booking_date', v)} />
+          </div>
+        </div>
+
+        {/* Event Dates */}
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Event Dates</div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Wedding Date" type="date" value={weddingDate} onChange={setWeddingDate} />
+            <Field label="Engagement Date" type="date" value={engagementDate} onChange={setEngagementDate} />
+            <Field label="Pre-Wedding Date" type="date" value={preweddingDate} onChange={setPreweddingDate} />
+          </div>
+        </div>
+
+        {/* Ownership */}
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Ownership</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Project Manager" type="select" value={f.project_manager_id} onChange={v => u('project_manager_id', v)}
+              options={[{ value: '', label: '— None —' }, ...members.filter(m => m.is_active && m.role === 'project_manager').map(m => ({ value: m.id, label: m.full_name }))]} />
+            <Field label="Relationship Manager" type="select" value={f.relationship_manager_id} onChange={v => u('relationship_manager_id', v)}
+              options={[{ value: '', label: '— None —' }, ...members.filter(m => m.is_active && m.role === 'relationship_manager').map(m => ({ value: m.id, label: m.full_name }))]} />
+          </div>
+        </div>
+
+        <Field label="Internal Notes" type="textarea" value={f.notes} onChange={v => u('notes', v)} placeholder="Any internal notes…" />
+
+        {/* Delete confirmation panel */}
+        {confirmDelete && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="text-sm font-medium text-red-800 mb-1">Delete this project?</div>
+            <div className="text-xs text-red-600 mb-3">This will permanently remove the project and all related tasks, payments, deliverables, and events.</div>
+            <div className="flex gap-2">
+              <button onClick={remove} disabled={saving}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50">
+                {saving ? 'Deleting…' : 'Yes, Delete Project'}
+              </button>
+              <button onClick={() => setConfirmDelete(false)}
+                className="px-4 py-2 border border-red-200 text-red-700 text-xs rounded-lg hover:bg-red-100 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-3 mt-7">
+        {!confirmDelete && (
+          <DangerButton onClick={() => setConfirmDelete(true)}>Delete Project</DangerButton>
+        )}
+        <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={save} disabled={!valid || saving}>{saving ? 'Saving…' : 'Save Changes'}</PrimaryButton>
+      </div>
+    </Modal>
+  );
+}
+
 // ============ EVENT FORM ============
 export function EventForm({ open, onClose, onSaved, clientId, initial }) {
   const [f, setF] = useState({ event_type: 'Wedding', event_date: '', event_time: '', venue: '', notes: '' });

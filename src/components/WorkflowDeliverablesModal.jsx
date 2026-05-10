@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { insertRow } from '../dataHooks';
 
 // ─── Template definitions ─────────────────────────────────────────────────────
 
 let _uid = 0;
-function makeRow(item = '', due_date = '') {
+function makeRow(item = '', due_date = '', assignee = {}) {
   return {
     _id: ++_uid,
     item,
-    assigned_to: '',
-    assignee_id: '',
-    assignee_type: '',
+    assigned_to:   assignee.assigned_to   || '',
+    assignee_id:   assignee.assignee_id   || '',
+    assignee_type: assignee.assignee_type || '',
     due_date,
     priority: 'medium',
     notes: '',
@@ -24,17 +24,18 @@ function addDays(days) {
   return d.toISOString().split('T')[0];
 }
 
+// role: 'pm' auto-assigns the current project's Project Manager
 const TEMPLATE_DEFS = {
   wedding: [
-    { item: 'Raw Pictures',         offsetDays: 7  },
-    { item: 'Photo Selection Link', offsetDays: 10 },
-    { item: 'Teaser & Reels',       offsetDays: 20 },
-    { item: 'Cinematic Highlight',  offsetDays: 30 },
+    { item: 'Raw Pictures',         offsetDays: 7,  role: 'pm' },
+    { item: 'Photo Selection Link', offsetDays: 10, role: 'pm' },
+    { item: 'Teaser & Reels',       offsetDays: 20, role: null },
+    { item: 'Cinematic Highlight',  offsetDays: 30, role: null },
   ],
   prewedding: [
-    { item: 'Raw Pictures',         offsetDays: 7  },
-    { item: 'Teaser & Reels',       offsetDays: 10 },
-    { item: 'Pre Wedding Video',    offsetDays: 15 },
+    { item: 'Raw Pictures',         offsetDays: 7,  role: 'pm' },
+    { item: 'Teaser & Reels',       offsetDays: 10, role: null },
+    { item: 'Pre Wedding Video',    offsetDays: 15, role: null },
   ],
 };
 
@@ -43,10 +44,16 @@ const TEMPLATE_OPTIONS = [
   { value: 'prewedding', label: 'Pre Wedding' },
 ];
 
-function fromTemplate(key) {
-  return (TEMPLATE_DEFS[key] || TEMPLATE_DEFS.wedding).map(t =>
-    makeRow(t.item, addDays(t.offsetDays))
-  );
+function fromTemplate(key, ctx = {}) {
+  const { pm } = ctx;
+  return (TEMPLATE_DEFS[key] || TEMPLATE_DEFS.wedding).map(t => {
+    const profile = t.role === 'pm' ? pm : null;
+    return makeRow(t.item, addDays(t.offsetDays), {
+      assignee_id:   profile?.id        || '',
+      assignee_type: profile            ? 'team' : '',
+      assigned_to:   profile?.full_name || '',
+    });
+  });
 }
 
 // ─── Inline assignee picker ───────────────────────────────────────────────────
@@ -95,17 +102,25 @@ function AssigneePicker({ value, onChange, members, vendors }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function WorkflowDeliverablesModal({ open, onClose, onSaved, clientId, members = [], vendors = [] }) {
+export default function WorkflowDeliverablesModal({ open, onClose, onSaved, clientId, members = [], vendors = [], client = null }) {
   const [template, setTemplate] = useState('wedding');
-  const [rows, setRows] = useState(() => fromTemplate('wedding'));
+  const [rows, setRows] = useState(() => fromTemplate('wedding', { pm: client?.project_manager || null }));
   const [saving, setSaving] = useState(false);
+
+  // Re-seed with fresh PM each time the modal opens
+  useEffect(() => {
+    if (!open) return;
+    const ctx = { pm: client?.project_manager || null };
+    setTemplate('wedding');
+    setRows(fromTemplate('wedding', ctx));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
 
   function handleTemplateChange(e) {
     const key = e.target.value;
     setTemplate(key);
-    setRows(fromTemplate(key));
+    setRows(fromTemplate(key, { pm: client?.project_manager || null }));
   }
 
   function updateRow(id, field, val) {

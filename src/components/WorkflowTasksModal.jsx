@@ -1,55 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { insertRow } from '../dataHooks';
 
-// ─── Template definitions ─────────────────────────────────────────────────────
+// ─── Template config ──────────────────────────────────────────────────────────
+// role: 'pm' | 'rm' | null
+// date: null | 'today+N' | 'wedding' | 'wedding+N' | 'engagement' | 'engagement±N'
 
-const TEMPLATES = {
+const TEMPLATE_CONFIG = {
   wedding: [
-    'Invite',
-    'Assign Photographer',
-    'Wedding Discussion',
-    'Add Photographer to Group',
-    'Payment Reminder',
-    'Remove Photographer from Group',
+    { title: 'Invitation',                     role: 'rm', date: 'today+1'    },
+    { title: 'Assign Photographer',            role: 'pm', date: 'today+3'    },
+    { title: 'Discussion Link',                role: 'rm', date: null          },
+    { title: 'Add Photographer to Group',      role: 'pm', date: null          },
+    { title: 'Wedding Payment Message',        role: 'rm', date: 'wedding'     },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'wedding+1'  },
   ],
   engagement_wedding: [
-    'Invite',
-    'Assign Photographer',
-    'Wedding Discussion',
-    'Add Photographer to Group',
-    'Engagement Payment Message',
-    'Remove Photographer from Group',
-    'Add Photographer to Wedding Group',
-    'Wedding Payment Message',
-    'Remove Photographer from Wedding Group',
+    { title: 'Invitation',                     role: 'rm', date: 'today+1'        },
+    { title: 'Assign Photographer',            role: 'pm', date: 'today+3'        },
+    { title: 'Discussion Link',                role: 'rm', date: null              },
+    { title: 'Add Photographer to Group',      role: 'pm', date: 'engagement-1'   },
+    { title: 'Engagement Payment Message',     role: 'rm', date: 'engagement'     },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'engagement+1'  },
+    { title: 'Add Photographer to Group',      role: 'pm', date: null              },
+    { title: 'Wedding Payment Message',        role: 'rm', date: 'wedding'         },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'wedding+1'      },
   ],
   prewedding_wedding: [
-    'Invite',
-    'Assign Photographer',
-    'PreWedding Discussion',
-    'Wedding Discussion',
-    'Add Photographer to Group',
-    'PreWedding Payment Message',
-    'Remove Photographer from Group',
-    'Add Photographer to Group',
-    'Wedding Payment Message',
-    'Remove Photographer from Wedding Group',
+    { title: 'Invitation',                     role: 'rm', date: 'today+1'   },
+    { title: 'Assign Photographer',            role: 'pm', date: 'today+3'   },
+    { title: 'PreWedding Discussion Link',     role: 'rm', date: null         },
+    { title: 'Discussion Link',                role: 'rm', date: null         },
+    { title: 'Add Photographer to Group',      role: 'pm', date: null         },
+    { title: 'Wedding Payment Message',        role: 'rm', date: 'wedding'    },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'wedding+1' },
   ],
   prewedding_engagement_wedding: [
-    'Invite',
-    'Assign Photographer',
-    'PreWedding Discussion',
-    'Wedding Discussion',
-    'Add Photographer to Group',
-    'PreWedding Payment Reminder',
-    'Remove Photographer from Group',
-    'Add Photographer to Group',
-    'Engagement Payment Message',
-    'Remove Photographer from Group',
-    'Add Photographer to Group',
-    'Wedding Payment Reminder',
-    'Remove Photographer from Group',
+    { title: 'Invitation',                     role: 'rm', date: 'today+1'        },
+    { title: 'Assign Photographer',            role: 'pm', date: 'today+3'        },
+    { title: 'PreWedding Discussion Link',     role: 'rm', date: null              },
+    { title: 'Discussion Link',                role: 'rm', date: null              },
+    { title: 'Add Photographer to Group',      role: 'pm', date: 'engagement-1'   },
+    { title: 'Engagement Payment Message',     role: 'rm', date: 'engagement'     },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'engagement+1'  },
+    { title: 'Add Photographer to Group',      role: 'pm', date: null              },
+    { title: 'Wedding Payment Message',        role: 'rm', date: 'wedding'         },
+    { title: 'Remove Photographer From Group', role: 'pm', date: 'wedding+1'      },
+  ],
+  prewedding: [
+    { title: 'Add Photographer to Group',      role: 'pm', date: null },
+    { title: 'PreWedding Payment Message',     role: 'rm', date: null },
+    { title: 'Remove Photographer From Group', role: 'pm', date: null },
   ],
 };
 
@@ -58,26 +59,59 @@ const TEMPLATE_OPTIONS = [
   { value: 'engagement_wedding',            label: 'Engagement + Wedding' },
   { value: 'prewedding_wedding',            label: 'PreWedding + Wedding' },
   { value: 'prewedding_engagement_wedding', label: 'PreWedding + Engagement + Wedding' },
+  { value: 'prewedding',                    label: 'PreWedding' },
 ];
+
+// ─── Date resolver ────────────────────────────────────────────────────────────
+
+function resolveDate(rule, { weddingDate, engagementDate } = {}) {
+  if (!rule) return '';
+  const todayStr = new Date().toISOString().split('T')[0];
+  const shift = (base, n) => {
+    if (!base) return '';
+    const d = new Date(base + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return d.toISOString().split('T')[0];
+  };
+  const todayMatch = rule.match(/^today([+-]\d+)?$/);
+  if (todayMatch) return shift(todayStr, todayMatch[1] ? parseInt(todayMatch[1]) : 0);
+  const eventMatch = rule.match(/^(wedding|engagement)([+-]\d+)?$/);
+  if (eventMatch) {
+    const base = eventMatch[1] === 'wedding' ? weddingDate : engagementDate;
+    return shift(base, eventMatch[2] ? parseInt(eventMatch[2]) : 0);
+  }
+  return '';
+}
 
 // ─── Row factory ──────────────────────────────────────────────────────────────
 
 let _uid = 0;
-function makeRow(title = '') {
+function makeRow({ title = '', assigned_to = '', assignee_id = '', assignee_type = '', due_date = '' } = {}) {
+  return { _id: ++_uid, title, assigned_to, assignee_id, assignee_type, due_date, priority: 'medium', notes: '' };
+}
+
+function buildCtx(client, events) {
   return {
-    _id: ++_uid,
-    title,
-    assigned_to: '',
-    assignee_id: '',
-    assignee_type: '',
-    due_date: '',
-    priority: 'medium',
-    notes: '',
+    pm:             client?.project_manager      || null,
+    rm:             client?.relationship_manager || null,
+    weddingDate:    events?.find(e => e.event_type === 'Wedding')?.event_date    || null,
+    engagementDate: events?.find(e => e.event_type === 'Engagement')?.event_date || null,
   };
 }
 
-function fromTemplate(key) {
-  return (TEMPLATES[key] || TEMPLATES.wedding).map(t => makeRow(t));
+function fromTemplate(key, ctx = {}) {
+  const { pm, rm, weddingDate, engagementDate } = ctx;
+  const defs = TEMPLATE_CONFIG[key] || TEMPLATE_CONFIG.wedding;
+  return defs.map(def => {
+    const profile = def.role === 'pm' ? pm : def.role === 'rm' ? rm : null;
+    return makeRow({
+      title:         def.title,
+      assignee_id:   profile?.id        || '',
+      assignee_type: profile            ? 'team' : '',
+      assigned_to:   profile?.full_name || '',
+      due_date:      resolveDate(def.date, { weddingDate, engagementDate }),
+    });
+  });
 }
 
 // ─── Inline assignee picker (native select — avoids z-index clipping in modal) ─
@@ -126,17 +160,25 @@ function AssigneePicker({ value, onChange, members, vendors }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function WorkflowTasksModal({ open, onClose, onSaved, clientId, members = [], vendors = [] }) {
+export default function WorkflowTasksModal({ open, onClose, onSaved, clientId, members = [], vendors = [], client = null, events = [] }) {
   const [template, setTemplate] = useState('wedding');
-  const [rows, setRows] = useState(() => fromTemplate('wedding'));
+  const [rows, setRows] = useState(() => fromTemplate('wedding', buildCtx(client, events)));
   const [saving, setSaving] = useState(false);
+
+  // Re-seed with fresh PM/RM + event dates each time the modal opens
+  useEffect(() => {
+    if (!open) return;
+    const ctx = buildCtx(client, events);
+    setTemplate('wedding');
+    setRows(fromTemplate('wedding', ctx));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
 
   function handleTemplateChange(e) {
     const key = e.target.value;
     setTemplate(key);
-    setRows(fromTemplate(key));
+    setRows(fromTemplate(key, buildCtx(client, events)));
   }
 
   function updateRow(id, field, val) {
