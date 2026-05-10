@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   LayoutDashboard, Users, Wallet, Briefcase, CheckSquare, Package,
   Menu, ChevronLeft, Calendar, LifeBuoy, LogOut, UserCog, ClipboardList, LayoutGrid
@@ -62,6 +62,9 @@ function CRM({ user, profile, session, logout }) {
 
   const role = resolveRole(profile?.role);
 
+  // PM filter persists across navigation; RM/admin visibility is automatic
+  const [pmFilter, setPmFilter] = useState('my'); // 'my' | 'all' | 'others'
+
   // Only show nav items this role can access
   const navItems = ALL_NAV_ITEMS.filter(item => canAccess(role, item.id));
 
@@ -70,7 +73,11 @@ function CRM({ user, profile, session, logout }) {
   const safeView    = canAccess(role, view) ? view : defaultView;
 
   const members      = useTable('profiles',      { orderBy: 'full_name',    ascending: true });
-  const clients      = useTable('clients',       { orderBy: 'created_at',   ascending: false });
+  const clients      = useTable('clients',       {
+    orderBy:  'created_at',
+    ascending: false,
+    select:   '*, project_manager:profiles!project_manager_id(id,full_name,email,role), relationship_manager:profiles!relationship_manager_id(id,full_name,email,role)',
+  });
   const events       = useTable('events',        { orderBy: 'event_date',   ascending: true });
   const vendors      = useTable('vendors',       { orderBy: 'name',         ascending: true });
   const projectVendors = useTable('project_vendors', { orderBy: 'created_at' });
@@ -81,6 +88,42 @@ function CRM({ user, profile, session, logout }) {
   const deliverables = useTable('deliverables',  { orderBy: 'due_date',     ascending: true });
   const activity     = useTable('activity_log',  { orderBy: 'created_at',   ascending: false });
 
+  // Clients visible to the current user based on role + PM filter
+  const visibleClients = useMemo(() => {
+    if (!profile) return clients.rows;
+    const uid = profile.id;
+    if (role === 'relationship_manager') {
+      return clients.rows.filter(c => c.relationship_manager_id === uid);
+    }
+    if (role === 'project_manager') {
+      if (pmFilter === 'my')     return clients.rows.filter(c => c.project_manager_id === uid);
+      if (pmFilter === 'others') return clients.rows.filter(c => c.project_manager_id !== uid);
+      return clients.rows; // 'all'
+    }
+    return clients.rows; // admin, production_coordinator, editor see everything
+  }, [clients.rows, profile, role, pmFilter]);
+
+  const visibleClientIds = useMemo(
+    () => new Set(visibleClients.map(c => c.id)),
+    [visibleClients]
+  );
+
+  const visibleEvents = useMemo(
+    () => events.rows.filter(e => visibleClientIds.has(e.client_id)),
+    [events.rows, visibleClientIds]
+  );
+
+  // Internal tasks (null client_id) always visible; project tasks filtered by scope
+  const visibleTasks = useMemo(
+    () => tasks.rows.filter(t => !t.client_id || visibleClientIds.has(t.client_id)),
+    [tasks.rows, visibleClientIds]
+  );
+
+  const visibleDeliverables = useMemo(
+    () => deliverables.rows.filter(d => visibleClientIds.has(d.client_id)),
+    [deliverables.rows, visibleClientIds]
+  );
+
   const refreshAll = () => {
     members.refresh(); clients.refresh(); events.refresh(); vendors.refresh(); projectVendors.refresh();
     payments.refresh(); vendorPayments.refresh(); expenses.refresh();
@@ -88,18 +131,28 @@ function CRM({ user, profile, session, logout }) {
   };
 
   const data = {
-    members:        members.rows,
-    clients:        clients.rows,
-    events:         events.rows,
-    vendors:        vendors.rows,
-    projectVendors: projectVendors.rows,
-    payments:       payments.rows,
-    vendorPayments: vendorPayments.rows,
-    expenses:       expenses.rows,
-    tasks:          tasks.rows,
-    deliverables:   deliverables.rows,
-    activity:       activity.rows,
-    loading:        clients.loading || vendors.loading,
+    members:         members.rows,
+    // Project-scoped (filtered by role/pmFilter)
+    clients:         visibleClients,
+    events:          visibleEvents,
+    tasks:           visibleTasks,
+    deliverables:    visibleDeliverables,
+    // Unfiltered — used by My Work personal views
+    allClients:      clients.rows,
+    allTasks:        tasks.rows,
+    allDeliverables: deliverables.rows,
+    // Unscoped data
+    vendors:         vendors.rows,
+    projectVendors:  projectVendors.rows,
+    payments:        payments.rows,
+    vendorPayments:  vendorPayments.rows,
+    expenses:        expenses.rows,
+    activity:        activity.rows,
+    // Filter controls
+    pmFilter,
+    setPmFilter,
+    userRole: role,
+    loading:  clients.loading || vendors.loading,
     refresh: {
       all:            refreshAll,
       members:        members.refresh,

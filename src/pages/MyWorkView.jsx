@@ -19,7 +19,7 @@ function isAssignedToMe(row, profile) {
 
 // ─── My Work Overview ─────────────────────────────────────────────────────────
 export function MyWorkOverview({ data, profile }) {
-  const { tasks, deliverables, clients, members, vendors, refresh } = data;
+  const { allTasks: tasks, allDeliverables: deliverables, allClients: clients, members, vendors, refresh } = data;
   const [taskForm, setTaskForm] = useState({ open: false, initial: null });
 
   const myTasks = useMemo(
@@ -179,7 +179,7 @@ export function MyWorkOverview({ data, profile }) {
 
 // ─── My Work: Tasks ───────────────────────────────────────────────────────────
 export function MyWorkTasksView({ data, profile }) {
-  const { tasks, clients, members, vendors, refresh } = data;
+  const { allTasks: tasks, allClients: clients, members, vendors, refresh } = data;
   const [filter, setFilter] = useState('active');
   const [taskForm, setTaskForm] = useState({ open: false, initial: null });
 
@@ -269,7 +269,7 @@ export function MyWorkTasksView({ data, profile }) {
 
 // ─── My Work: Deliverables ────────────────────────────────────────────────────
 export function MyWorkDeliverablesView({ data, profile }) {
-  const { deliverables, clients, members, vendors, refresh } = data;
+  const { allDeliverables: deliverables, allClients: clients, members, vendors, refresh } = data;
   const [filter, setFilter] = useState('active');
   const [delForm, setDelForm] = useState({ open: false, initial: null });
 

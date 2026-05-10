@@ -362,7 +362,7 @@ export function ScheduleView({ data, openClient }) {
 
 // ============ CLIENTS LIST ============
 export function ClientsView({ data, openClient }) {
-  const { clients, events, payments, projectVendors, vendors, refresh, loading } = data;
+  const { clients, events, payments, projectVendors, vendors, members, refresh, loading, pmFilter, setPmFilter, userRole } = data;
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -417,15 +417,29 @@ export function ClientsView({ data, openClient }) {
         </div>
       </div>
 
+      {userRole === 'project_manager' && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex gap-1 bg-white border border-stone-200/70 rounded-md p-1">
+            {[['my', 'My Projects'], ['all', 'All Projects'], ['others', 'Other PMs']].map(([val, lbl]) => (
+              <button key={val} onClick={() => setPmFilter(val)}
+                className={`px-3 py-1.5 rounded text-[10px] uppercase tracking-wider transition-colors ${pmFilter === val ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-50'}`}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-stone-400">{clients.length} project{clients.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <EmptyState title="No clients yet" sub="Add your first wedding to get started." />
       ) : (
         <>
           <div className="bg-white rounded-lg border border-stone-200/70 overflow-x-auto hidden md:block">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1080px]">
               <thead>
                 <tr className="border-b border-stone-200/70 bg-stone-50/50">
-                  {['Wedding Date', 'Couple', 'Location', 'Photographer', 'Booking', 'Received', 'Pending', 'Status', ''].map(h =>
+                  {['Wedding Date', 'Couple', 'Location', 'Photographer', 'Booking', 'Received', 'Pending', 'Status', 'PM', 'RM', ''].map(h =>
                     <th key={h} className="text-left text-[10px] uppercase tracking-[0.2em] text-stone-500 px-3 py-2.5 font-normal">{h}</th>)}
                 </tr>
               </thead>
@@ -454,6 +468,12 @@ export function ClientsView({ data, openClient }) {
                           {c.status}
                         </span>
                       </td>
+                      <td className="px-3 py-2.5 text-xs text-stone-600 whitespace-nowrap">
+                        {c.project_manager?.full_name || <span className="text-stone-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-stone-600 whitespace-nowrap">
+                        {c.relationship_manager?.full_name || <span className="text-stone-300">—</span>}
+                      </td>
                       <td className="px-3 py-2.5 text-stone-400"><ChevronRight size={14} /></td>
                     </tr>
                   );
@@ -481,6 +501,12 @@ export function ClientsView({ data, openClient }) {
                     <div><div className="text-stone-500">Photographer</div><div className="text-stone-900 mt-0.5">{photographer?.name || '—'}</div></div>
                     <div className="text-right"><div className="text-stone-500">Pending</div><div className="text-stone-900 mt-0.5">{fmtINRshort(pending)} of {fmtINRshort(c.total_amount)}</div></div>
                   </div>
+                  {(c.project_manager || c.relationship_manager) && (
+                    <div className="flex gap-4 text-xs mt-2 pt-2 border-t border-stone-100">
+                      {c.project_manager && <span className="text-stone-500">PM: <span className="text-stone-700">{c.project_manager.full_name}</span></span>}
+                      {c.relationship_manager && <span className="text-stone-500">RM: <span className="text-stone-700">{c.relationship_manager.full_name}</span></span>}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -488,7 +514,7 @@ export function ClientsView({ data, openClient }) {
         </>
       )}
 
-      <ClientForm open={showForm} onClose={() => setShowForm(false)} onSaved={refresh.all} />
+      <ClientForm open={showForm} onClose={() => setShowForm(false)} onSaved={refresh.all} members={members} />
     </div>
   );
 }
@@ -993,7 +1019,7 @@ export function ClientDetailView({ data, clientId, openVendor }) {
         </div>
       )}
 
-      <ClientForm open={editClient} onClose={() => setEditClient(false)} onSaved={refreshAll} initial={c} />
+      <ClientForm open={editClient} onClose={() => setEditClient(false)} onSaved={refreshAll} initial={c} members={members} />
       <EventForm open={eventForm.open} onClose={() => setEventForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} initial={eventForm.initial} />
       <ProjectVendorForm open={pvForm.open} onClose={() => setPvForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} vendors={vendors} initial={pvForm.initial} />
       <PaymentForm open={paymentForm.open} onClose={() => setPaymentForm({ open: false, initial: null })} onSaved={refreshAll} clientId={clientId} initial={paymentForm.initial} />

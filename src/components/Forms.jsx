@@ -8,10 +8,11 @@ import {
 } from '../utils';
 
 // ============ CLIENT FORM ============
-export function ClientForm({ open, onClose, onSaved, initial }) {
+export function ClientForm({ open, onClose, onSaved, initial, members = [] }) {
   const [f, setF] = useState({
     bride_name: '', groom_name: '', phone: '', email: '', city: '',
     package: 'Gold', total_amount: '', status: 'Lead', notes: '',
+    project_manager_id: '', relationship_manager_id: '',
     token_received: false, token_amount: '', token_date: new Date().toISOString().slice(0, 10), token_mode: 'UPI', token_account: '',
     advance_amount: '', advance_date: new Date().toISOString().slice(0, 10), advance_mode: 'UPI', advance_account: '',
     lead_created_at: new Date().toISOString().slice(0, 10)
@@ -23,6 +24,8 @@ export function ClientForm({ open, onClose, onSaved, initial }) {
     if (initial) setF({
       ...initial,
       total_amount: initial.total_amount || '',
+      project_manager_id:      initial.project_manager_id      || '',
+      relationship_manager_id: initial.relationship_manager_id || '',
       token_received: false,
       token_amount: '',
       token_date: new Date().toISOString().slice(0, 10),
@@ -37,6 +40,7 @@ export function ClientForm({ open, onClose, onSaved, initial }) {
     else setF({
       bride_name: '', groom_name: '', phone: '', email: '', city: '',
       package: 'Gold', total_amount: '', status: 'Lead', notes: '',
+      project_manager_id: '', relationship_manager_id: '',
       token_received: false, token_amount: '', token_date: new Date().toISOString().slice(0, 10), token_mode: 'UPI', token_account: '',
       advance_amount: '', advance_date: new Date().toISOString().slice(0, 10), advance_mode: 'UPI', advance_account: '',
       lead_created_at: new Date().toISOString().slice(0, 10)
@@ -65,7 +69,9 @@ export function ClientForm({ open, onClose, onSaved, initial }) {
         status,
         notes: f.notes,
         lead_created_at: f.lead_created_at || null,
-        booking_date: advanceReceived ? f.advance_date : null
+        booking_date: advanceReceived ? f.advance_date : null,
+        project_manager_id:      f.project_manager_id      || null,
+        relationship_manager_id: f.relationship_manager_id || null,
       };
 
       console.log('[ClientForm] save clientPayload', clientPayload, { tokenReceived, advanceReceived });
@@ -172,6 +178,36 @@ export function ClientForm({ open, onClose, onSaved, initial }) {
               <Field label="Advance Payment Method" type="select" value={f.advance_mode} onChange={(v) => u('advance_mode', v)} options={PAYMENT_MODES} />
               <Field label="Advance Account Name" value={f.advance_account} onChange={(v) => u('advance_account', v)} placeholder="Bank / UPI account" />
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-stone-500">Ownership</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Project Manager"
+              type="select"
+              value={f.project_manager_id}
+              onChange={(v) => u('project_manager_id', v)}
+              options={[
+                { value: '', label: '— None —' },
+                ...members
+                  .filter(m => m.is_active && m.role === 'project_manager')
+                  .map(m => ({ value: m.id, label: m.full_name }))
+              ]}
+            />
+            <Field
+              label="Relationship Manager"
+              type="select"
+              value={f.relationship_manager_id}
+              onChange={(v) => u('relationship_manager_id', v)}
+              options={[
+                { value: '', label: '— None —' },
+                ...members
+                  .filter(m => m.is_active && m.role === 'relationship_manager')
+                  .map(m => ({ value: m.id, label: m.full_name }))
+              ]}
+            />
           </div>
         </div>
 
