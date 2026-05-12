@@ -40,6 +40,7 @@ CREATE TABLE events (
   event_date DATE NOT NULL,
   event_time TIME,
   venue TEXT,
+  location_link TEXT,              -- optional Google Maps / location URL (migration 009)
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

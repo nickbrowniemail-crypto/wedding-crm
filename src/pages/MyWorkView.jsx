@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { CheckSquare, Package, AlertCircle } from 'lucide-react';
 import { fmtDateShort, daysLeft, taskStatusColor } from '../utils';
-import { StatCard, EmptyState } from '../components/UI';
+import { StatCard, EmptyState, PaginationBar } from '../components/UI';
 import { TaskForm, DeliverableForm } from '../components/Forms';
+import { usePaginated } from '../dataHooks';
 
 // ─── Helper: is this row assigned to the logged-in user? ─────────────────────
 // Checks new assignee_id field first, falls back to legacy assigned_to name match.
@@ -179,9 +180,11 @@ export function MyWorkOverview({ data, profile }) {
 
 // ─── My Work: Tasks ───────────────────────────────────────────────────────────
 export function MyWorkTasksView({ data, profile }) {
-  const { allTasks: tasks, allClients: clients, members, vendors, refresh } = data;
+  const { allTasks: tasks, allClients: clients, members, vendors, refresh, userRole } = data;
   const [filter, setFilter] = useState('active');
   const [taskForm, setTaskForm] = useState({ open: false, initial: null });
+
+  const isAdmin = userRole === 'admin';
 
   const myTasks = useMemo(
     () => tasks.filter(t => isAssignedToMe(t, profile)),
@@ -199,6 +202,9 @@ export function MyWorkTasksView({ data, profile }) {
     });
   }, [myTasks, filter]);
 
+  const { page, setPage, pageSize, setPageSize, totalPages, pageItems, total } = usePaginated(filtered, 30);
+  useEffect(() => { setPage(1); }, [filter, setPage]);
+
   return (
     <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
       <div className="flex items-center justify-between mb-5">
@@ -210,55 +216,62 @@ export function MyWorkTasksView({ data, profile }) {
             </button>
           ))}
         </div>
-        <span className="text-sm text-stone-500">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-sm text-stone-500">{total} task{total !== 1 ? 's' : ''}</span>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={CheckSquare} title={filter === 'active' ? 'All caught up!' : 'No tasks found'} />
       ) : (
-        <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b border-stone-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Due</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Task</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filtered.map(t => {
-                  const client = clients.find(c => c.id === t.client_id);
-                  const isOverdue = t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date();
-                  return (
-                    <tr key={t.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setTaskForm({ open: true, initial: t })}>
-                      <td className={`px-4 py-3 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-stone-900'}`}>
-                        {t.due_date ? fmtDateShort(t.due_date) : '—'}
-                        {isOverdue && <span className="ml-1.5 text-[10px] text-red-400">overdue</span>}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-stone-900 max-w-[260px] truncate">{t.title}</td>
-                      <td className="px-4 py-3 text-sm text-stone-500">
-                        {client ? `${client.bride_name} & ${client.groom_name}` : 'Internal'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
-                          {t.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`capitalize ${t.priority === 'high' ? 'text-red-600' : t.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
-                          {t.priority || 'medium'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Due</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Task</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {pageItems.map(t => {
+                    const client = clients.find(c => c.id === t.client_id);
+                    const isOverdue = t.status !== 'done' && t.due_date && new Date(t.due_date) < new Date();
+                    return (
+                      <tr key={t.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setTaskForm({ open: true, initial: t })}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-stone-900'}`}>
+                          {t.due_date ? fmtDateShort(t.due_date) : '—'}
+                          {isOverdue && <span className="ml-1.5 text-[10px] text-red-400">overdue</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-stone-900 max-w-[260px] truncate">{t.title}</td>
+                        <td className="px-4 py-3 text-sm text-stone-500">
+                          {client ? `${client.bride_name} & ${client.groom_name}` : 'Internal'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(t.status)}`}>
+                            {t.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
+                          <span className={`capitalize ${t.priority === 'high' ? 'text-red-600' : t.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                            {t.priority || 'medium'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+          <PaginationBar
+            page={page} totalPages={totalPages} total={total} setPage={setPage}
+            label={`task${total !== 1 ? 's' : ''}`}
+            isAdmin={isAdmin} pageSize={pageSize} pageSizeOptions={[20, 30, 50]} setPageSize={setPageSize}
+          />
+        </>
       )}
 
       <TaskForm open={taskForm.open} onClose={() => setTaskForm({ open: false, initial: null })}
@@ -269,9 +282,11 @@ export function MyWorkTasksView({ data, profile }) {
 
 // ─── My Work: Deliverables ────────────────────────────────────────────────────
 export function MyWorkDeliverablesView({ data, profile }) {
-  const { allDeliverables: deliverables, allClients: clients, members, vendors, refresh } = data;
+  const { allDeliverables: deliverables, allClients: clients, members, vendors, refresh, userRole } = data;
   const [filter, setFilter] = useState('active');
   const [delForm, setDelForm] = useState({ open: false, initial: null });
+
+  const isAdmin = userRole === 'admin';
 
   const myDels = useMemo(
     () => deliverables.filter(d => isAssignedToMe(d, profile)),
@@ -289,6 +304,9 @@ export function MyWorkDeliverablesView({ data, profile }) {
     });
   }, [myDels, filter]);
 
+  const { page, setPage, pageSize, setPageSize, totalPages, pageItems, total } = usePaginated(filtered, 30);
+  useEffect(() => { setPage(1); }, [filter, setPage]);
+
   return (
     <div className="px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
       <div className="flex items-center justify-between mb-5">
@@ -300,55 +318,62 @@ export function MyWorkDeliverablesView({ data, profile }) {
             </button>
           ))}
         </div>
-        <span className="text-sm text-stone-500">{filtered.length} deliverable{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-sm text-stone-500">{total} deliverable{total !== 1 ? 's' : ''}</span>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={Package} title={filter === 'active' ? 'All deliverables done!' : 'No deliverables found'} />
       ) : (
-        <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b border-stone-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Due</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Item</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filtered.map(d => {
-                  const client = clients.find(c => c.id === d.client_id);
-                  const isOverdue = d.status !== 'done' && d.due_date && new Date(d.due_date) < new Date();
-                  return (
-                    <tr key={d.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setDelForm({ open: true, initial: d })}>
-                      <td className={`px-4 py-3 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-stone-900'}`}>
-                        {d.due_date ? fmtDateShort(d.due_date) : '—'}
-                        {isOverdue && <span className="ml-1.5 text-[10px] text-red-400">overdue</span>}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-stone-900 max-w-[260px] truncate">{d.item}</td>
-                      <td className="px-4 py-3 text-sm text-stone-500">
-                        {client ? `${client.bride_name} & ${client.groom_name}` : '—'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status || 'pending')}`}>
-                          {(d.status || 'pending').replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`capitalize ${d.priority === 'high' ? 'text-red-600' : d.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
-                          {d.priority || 'medium'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          <div className="bg-white rounded-lg border border-stone-200/70 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Due</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Project</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Priority</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {pageItems.map(d => {
+                    const client = clients.find(c => c.id === d.client_id);
+                    const isOverdue = d.status !== 'done' && d.due_date && new Date(d.due_date) < new Date();
+                    return (
+                      <tr key={d.id} className="hover:bg-stone-50/50 cursor-pointer" onClick={() => setDelForm({ open: true, initial: d })}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-medium' : 'text-stone-900'}`}>
+                          {d.due_date ? fmtDateShort(d.due_date) : '—'}
+                          {isOverdue && <span className="ml-1.5 text-[10px] text-red-400">overdue</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-stone-900 max-w-[260px] truncate">{d.item}</td>
+                        <td className="px-4 py-3 text-sm text-stone-500">
+                          {client ? `${client.bride_name} & ${client.groom_name}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-block px-2 py-1 rounded-full border text-xs uppercase tracking-wider ${taskStatusColor(d.status || 'pending')}`}>
+                            {(d.status || 'pending').replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
+                          <span className={`capitalize ${d.priority === 'high' ? 'text-red-600' : d.priority === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+                            {d.priority || 'medium'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+          <PaginationBar
+            page={page} totalPages={totalPages} total={total} setPage={setPage}
+            label={`deliverable${total !== 1 ? 's' : ''}`}
+            isAdmin={isAdmin} pageSize={pageSize} pageSizeOptions={[20, 30, 50]} setPageSize={setPageSize}
+          />
+        </>
       )}
 
       <DeliverableForm open={delForm.open} onClose={() => setDelForm({ open: false, initial: null })}

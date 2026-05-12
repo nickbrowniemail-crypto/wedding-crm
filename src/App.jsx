@@ -152,6 +152,7 @@ function CRM({ user, profile, session, logout }) {
     pmFilter,
     setPmFilter,
     userRole: role,
+    userId:   profile?.id,
     loading:  clients.loading || vendors.loading,
     refresh: {
       all:            refreshAll,
@@ -201,12 +202,12 @@ function CRM({ user, profile, session, logout }) {
           user={user} profile={profile} onLogout={logout}
         />
 
-        {safeView === 'dashboard'          && <DashboardView data={data} openClient={openClient} openVendor={openVendor} />}
+        {safeView === 'dashboard'          && <DashboardView data={data} openClient={openClient} openVendor={openVendor} navigateTo={navigateTo} />}
         {safeView === 'mywork'             && <MyWorkOverview data={data} profile={profile} />}
         {safeView === 'myworkTasks'        && <MyWorkTasksView data={data} profile={profile} />}
         {safeView === 'myworkDeliverables' && <MyWorkDeliverablesView data={data} profile={profile} />}
         {safeView === 'clients'            && <ClientsView data={data} openClient={openClient} />}
-        {safeView === 'schedule'           && <ScheduleView data={data} openClient={openClient} />}
+        {safeView === 'schedule'           && <ScheduleView data={data} openClient={openClient} openVendor={openVendor} />}
         {safeView === 'clientDetail'       && <ClientDetailView data={data} clientId={selectedClientId} openVendor={openVendor} />}
         {safeView === 'vendors'            && <VendorsView data={data} openVendor={openVendor} />}
         {safeView === 'vendorDetail'       && <VendorDetailView data={data} vendorId={selectedVendorId} openClient={openClient} />}

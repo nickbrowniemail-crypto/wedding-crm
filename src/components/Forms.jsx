@@ -3,9 +3,52 @@ import { Modal, Field, PrimaryButton, SecondaryButton, DangerButton } from './UI
 import { AssigneeSelect } from './AssigneeSelect';
 import { insertRow, updateRow, deleteRow } from '../dataHooks';
 import {
-  CLIENT_STATUSES, PACKAGES, VENDOR_TYPES, EVENT_TYPES,
+  CLIENT_STATUSES, PACKAGES, VENDOR_TYPES, EVENT_TYPES, CREW_FIELDS, CREW_DEFAULT,
   TASK_STATUSES, PRIORITIES, PAYMENT_MODES, PAYMENT_TYPES, EXPENSE_CATEGORIES
 } from '../utils';
+
+// Options for the event-type select — standard types + "Custom Event…" sentinel
+const EVENT_TYPE_OPTIONS = [...EVENT_TYPES, { value: '__custom__', label: 'Custom Event…' }];
+const EVENT_TYPE_SET = new Set(EVENT_TYPES);
+
+// Hour-only time picker (Hour + AM/PM, no minutes)
+// Stores / receives "HH:00" 24-hour strings compatible with the rest of the app
+function HourPicker({ value, onChange }) {
+  const sel = (() => {
+    if (!value) return { hour: '', ampm: 'AM' };
+    const h = parseInt(value.split(':')[0], 10);
+    if (isNaN(h)) return { hour: '', ampm: 'AM' };
+    return {
+      hour:  String(h === 0 ? 12 : h > 12 ? h - 12 : h),
+      ampm:  h >= 12 ? 'PM' : 'AM',
+    };
+  })();
+
+  const emit = (hour, ampm) => {
+    if (!hour) { onChange(null); return; }
+    let h = parseInt(hour, 10);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    onChange(`${String(h).padStart(2, '0')}:00`);
+  };
+
+  const cls = 'px-3 py-2 bg-white border border-stone-200 rounded-md text-sm focus:outline-none focus:border-stone-400';
+  return (
+    <div>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Time</label>
+      <div className="flex gap-2 mt-1.5">
+        <select value={sel.hour} onChange={e => emit(e.target.value, sel.ampm)} className={`flex-1 ${cls}`}>
+          <option value="">— Hour —</option>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={String(h)}>{h}</option>)}
+        </select>
+        <select value={sel.ampm} onChange={e => emit(sel.hour, e.target.value)} className={cls}>
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    </div>
+  );
+}
 
 // ============ CLIENT FORM ============
 export function ClientForm({ open, onClose, onSaved, initial, members = [] }) {
@@ -404,24 +447,69 @@ export function EditProjectModal({ open, onClose, onSaved, client, events = [], 
   );
 }
 
+// ============ CREW PLANNER ============
+function CrewPlanner({ values, onChange }) {
+  return (
+    <div>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-stone-500 block mb-1.5">
+        Production Team
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        {CREW_FIELDS.map(({ key, label }) => {
+          const n = values[key] ?? 0;
+          const on = n > 0;
+          return (
+            <div key={key} className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs transition-all select-none ${
+              on ? 'bg-stone-900 border-stone-900 text-white' : 'bg-white border-stone-200 text-stone-600 hover:border-stone-400'
+            }`}>
+              <button type="button" onClick={() => onChange(key, on ? 0 : 1)} className="flex-1 text-left font-medium leading-none">
+                {label}
+              </button>
+              {on && (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button type="button" onClick={() => onChange(key, Math.max(1, n - 1))}
+                    className="w-4 h-4 flex items-center justify-center rounded hover:bg-stone-700 text-stone-400 hover:text-white text-sm leading-none">−</button>
+                  <span className="w-4 text-center font-semibold tabular-nums text-xs">{n}</span>
+                  <button type="button" onClick={() => onChange(key, n + 1)}
+                    className="w-4 h-4 flex items-center justify-center rounded hover:bg-stone-700 text-stone-400 hover:text-white text-sm leading-none">+</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ============ EVENT FORM ============
 export function EventForm({ open, onClose, onSaved, clientId, initial }) {
-  const [f, setF] = useState({ event_type: 'Wedding', event_date: '', event_time: '', venue: '', notes: '' });
+  const BLANK = { event_type: 'Wedding', event_date: '', event_time: '', venue: '', location_link: '', notes: '', ...CREW_DEFAULT };
+  const [f, setF] = useState(BLANK);
+  const [customType, setCustomType] = useState('');
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
 
   useEffect(() => {
-    if (initial) setF({ ...initial });
-    else setF({ event_type: 'Wedding', event_date: '', event_time: '', venue: '', notes: '' });
-  }, [initial, open]);
+    if (initial) {
+      const isCustom = !!initial.event_type && !EVENT_TYPE_SET.has(initial.event_type);
+      setF({ ...CREW_DEFAULT, ...initial, event_type: isCustom ? '__custom__' : (initial.event_type || 'Wedding') });
+      setCustomType(isCustom ? initial.event_type : '');
+    } else {
+      setF(BLANK);
+      setCustomType('');
+    }
+  }, [initial, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const u = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const valid = f.event_type && f.event_date;
+  const isCustom = f.event_type === '__custom__';
+  const valid = (isCustom ? customType.trim() : f.event_type) && f.event_date;
 
   const save = async () => {
     setSaving(true);
     try {
-      const payload = { ...f, client_id: clientId, event_time: f.event_time || null };
+      const resolvedType = isCustom ? customType.trim() : f.event_type;
+      const payload = { ...f, event_type: resolvedType, client_id: clientId, event_time: f.event_time || null, location_link: f.location_link || null };
       if (isEdit) await updateRow('events', initial.id, payload);
       else await insertRow('events', payload);
       onSaved?.(); onClose();
@@ -437,12 +525,26 @@ export function EventForm({ open, onClose, onSaved, clientId, initial }) {
   return (
     <Modal open={open} onClose={onClose} eyebrow={isEdit ? 'Edit Event' : 'New Event'} title={isEdit ? 'Update event' : 'Add event'}>
       <div className="space-y-4">
-        <Field label="Event Type" type="select" required value={f.event_type} onChange={(v) => u('event_type', v)} options={EVENT_TYPES} />
+        <Field
+          label="Event Type" type="select" required
+          value={f.event_type}
+          onChange={(v) => { u('event_type', v); if (v !== '__custom__') setCustomType(''); }}
+          options={EVENT_TYPE_OPTIONS}
+        />
+        {isCustom && (
+          <Field
+            label="Custom Event Name" required
+            value={customType} onChange={setCustomType}
+            placeholder="e.g. Cocktail, Mata Ki Chowki, Ring Ceremony…"
+          />
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date" type="date" required value={f.event_date} onChange={(v) => u('event_date', v)} />
-          <Field label="Time" type="time" value={f.event_time} onChange={(v) => u('event_time', v)} />
+          <HourPicker value={f.event_time ?? ''} onChange={(v) => u('event_time', v)} />
         </div>
         <Field label="Venue" value={f.venue} onChange={(v) => u('venue', v)} placeholder="Hotel name / address" />
+        <Field label="Location Link" value={f.location_link} onChange={(v) => u('location_link', v)} placeholder="https://maps.google.com/…" />
+        <CrewPlanner values={f} onChange={(key, val) => u(key, val)} />
         <Field label="Notes" type="textarea" value={f.notes} onChange={(v) => u('notes', v)} />
       </div>
       <div className="flex gap-3 mt-7">

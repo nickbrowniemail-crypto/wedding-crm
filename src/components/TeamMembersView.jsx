@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { UserPlus, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useTeamMembers } from '../hooks/useTeamMembers';
 import { useAuth } from '../auth/AuthContext';
-import { Modal, Field, PrimaryButton, SecondaryButton, Loader, EmptyState } from './UI';
+import { Modal, Field, PrimaryButton, SecondaryButton, Loader, EmptyState, PaginationBar } from './UI';
+import { usePaginated } from '../dataHooks';
 import { ROLES, roleLabel, canAccess } from '../permissions';
 import { fmtDate } from '../utils';
 
@@ -175,13 +176,16 @@ export default function TeamMembersView() {
     }
   }
 
+  const isAdmin = currentProfile?.role === 'admin';
+  const { page, setPage, pageSize, setPageSize, totalPages, pageItems, total } = usePaginated(members, 20);
+
   if (loading) return <Loader label="Loading team…" />;
 
   return (
     <div className="p-5 sm:p-8 lg:p-10">
       {/* Page actions */}
       <div className="flex items-center justify-between mb-6 gap-3">
-        <p className="text-xs text-stone-500">{members.length} {members.length === 1 ? 'member' : 'members'}</p>
+        <p className="text-xs text-stone-500">{total} {total === 1 ? 'member' : 'members'}</p>
         <button
           onClick={() => setAddOpen(true)}
           className="flex items-center gap-2 bg-[#6B1F2E] hover:bg-[#5a1926] active:bg-[#4a1520] text-white px-4 py-2 rounded-lg text-sm transition-colors"
@@ -211,14 +215,14 @@ export default function TeamMembersView() {
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
-            {members.length === 0 && (
+            {total === 0 && (
               <tr>
                 <td colSpan={6} className="px-5 py-12 text-center text-stone-400 text-sm">
                   No team members yet. Add your first member above.
                 </td>
               </tr>
             )}
-            {members.map(m => {
+            {pageItems.map(m => {
               const busy = actionLoading === m.id;
               return (
                 <tr key={m.id} className={`transition-colors ${!m.is_active ? 'opacity-55' : 'hover:bg-stone-50/50'}`}>
@@ -271,10 +275,10 @@ export default function TeamMembersView() {
 
       {/* ── Mobile cards ── */}
       <div className="md:hidden space-y-3">
-        {members.length === 0 && (
+        {total === 0 && (
           <p className="text-center py-10 text-stone-400 text-sm">No team members yet.</p>
         )}
-        {members.map(m => {
+        {pageItems.map(m => {
           const busy = actionLoading === m.id;
           return (
             <div
@@ -316,6 +320,12 @@ export default function TeamMembersView() {
           );
         })}
       </div>
+
+      <PaginationBar
+        page={page} totalPages={totalPages} total={total} setPage={setPage}
+        label={`member${total !== 1 ? 's' : ''}`}
+        isAdmin={isAdmin} pageSize={pageSize} pageSizeOptions={[20, 50]} setPageSize={setPageSize}
+      />
 
       {/* ── Modals ── */}
       <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onAdd={handleAdd} />

@@ -42,9 +42,27 @@ export const VENDOR_TYPES = [
 ];
 
 export const EVENT_TYPES = [
-  'Pre-wedding', 'Engagement', 'Roka', 'Haldi', 'Mehendi',
-  'Sangeet', 'Wedding', 'Reception', 'Other'
+  'Pre-wedding', 'Engagement', 'Roka', 'Wedding', 'Reception',
+  'Haldi (Combined)', 'Haldi - Groom', 'Haldi - Bride',
+  'Mehndi (Combined)', 'Mehndi - Groom', 'Mehndi - Bride',
+  'Sangeet (Combined)', 'Sangeet - Groom', 'Sangeet - Bride',
+  'Other',
 ];
+
+export const CREW_FIELDS = [
+  { key: 'crew_still',       label: 'Still'       },
+  { key: 'crew_video',       label: 'Video'       },
+  { key: 'crew_still_video', label: 'Still/Video' },
+  { key: 'crew_candid',      label: 'Candid'      },
+  { key: 'crew_cine',        label: 'Cine'        },
+  { key: 'crew_drone',       label: 'Drone'       },
+  { key: 'crew_standee',     label: 'Standee'     },
+];
+
+export const CREW_DEFAULT = {
+  crew_still: 0, crew_video: 0, crew_still_video: 0,
+  crew_candid: 0, crew_cine: 0, crew_drone: 0, crew_standee: 0,
+};
 
 export const CLIENT_STATUSES = ['Lead', 'Booked', 'Shoot Done', 'Editing', 'Delivered'];
 export const TASK_STATUSES = ['pending', 'in_progress', 'done'];

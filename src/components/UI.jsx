@@ -1,3 +1,4 @@
+import { Fragment, useMemo } from 'react';
 import { X } from 'lucide-react';
 
 // ============ MODAL ============
@@ -112,6 +113,55 @@ export function Loader({ label = 'Loading…' }) {
   return (
     <div className="flex items-center justify-center py-12 text-stone-500 text-sm">
       <div className="animate-pulse">{label}</div>
+    </div>
+  );
+}
+
+// ============ PAGINATION BAR ============
+export function PaginationBar({ page, totalPages, total, setPage, label = 'records', isAdmin = false, pageSize, pageSizeOptions, setPageSize }) {
+  const pageNumbers = useMemo(() => {
+    const s = new Set([1, totalPages, page, page - 1, page + 1].filter(n => n >= 1 && n <= totalPages));
+    return [...s].sort((a, b) => a - b);
+  }, [totalPages, page]);
+
+  const showSelector = isAdmin && pageSizeOptions?.length && setPageSize;
+  const showPages = totalPages > 1;
+  if (!showPages && !showSelector) return null;
+
+  return (
+    <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-stone-400 tabular-nums">
+          Page {page} of {totalPages} · {total} {label}
+        </span>
+        {showSelector && (
+          <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
+            className="text-xs border border-stone-200 rounded px-2 py-1 bg-white text-stone-600 focus:outline-none focus:border-stone-400">
+            {pageSizeOptions.map(n => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+        )}
+      </div>
+      {showPages && (
+        <div className="flex items-center gap-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-3 py-1.5 text-xs border border-stone-200 rounded-md text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            Previous
+          </button>
+          {pageNumbers.map((n, i, arr) => (
+            <Fragment key={n}>
+              {i > 0 && n - arr[i - 1] > 1 && <span className="px-1 text-xs text-stone-400 select-none">…</span>}
+              <button onClick={() => setPage(n)}
+                className={`min-w-[30px] px-2 py-1.5 text-xs rounded-md transition-colors ${n === page ? 'bg-stone-900 text-white' : 'border border-stone-200 text-stone-600 hover:bg-stone-50'}`}>
+                {n}
+              </button>
+            </Fragment>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="px-3 py-1.5 text-xs border border-stone-200 rounded-md text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }
